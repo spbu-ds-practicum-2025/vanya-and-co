@@ -84,6 +84,7 @@
 ---
 
 ##  Архитектура системы
+
 **Основные компоненты:**
 
 ***API Gateway / HTTP API*** — входная точка в систему. Обрабатывает все HTTP-запросы от клиентов, маршрутизирует их к соответствующим сервисам/обработчикам, проверяет аутентификацию и права доступа.
@@ -106,10 +107,41 @@
 
 File Service → Sharing Service → Metadata DB (для создания и проверки share-токенов).
 
+```mermaid
+graph TD
+  subgraph Client
+    UserApp[Клиентское приложение]
+  end
+
+  subgraph Gateway
+    APIGateway[API Gateway]
+  end
+
+  subgraph Services
+    AuthService[Auth Service]
+    FileService[File Service]
+    SharingService[Sharing Service]
+  end
+
+  subgraph Databases
+    FileStorage[(File Storage)]
+    MetadataDB[(Metadata DB)]
+  end
+
+  UserApp -->|REST/HTTP| APIGateway
+  APIGateway -->|gRPC/HTTP| AuthService
+  APIGateway -->|gRPC/HTTP| FileService
+  APIGateway -->|gRPC/HTTP| SharingService
+  AuthService -->|SQL| MetadataDB
+  FileService -->|SQL| MetadataDB
+  FileService -->|Файлы| FileStorage
+  SharingService -->|SQL| MetadataDB
+```
+
 ---
 
 ## Технические сценарии
-### Сценарий: загрузка файла###
+### Сценарий: загрузка файла
 1. Клиент отправляет в API Gateway запрос POST /upload с файлом и токеном сессии в заголовке Authorization.
 2. API Gateway проверяет токен через Auth Service.
 3. После успешной аутентификации API Gateway перенаправляет запрос в File Service.
@@ -142,7 +174,7 @@ sequenceDiagram
   APIGateway-->>Client: Файл загружен
 ```
 
-### Сценарий: скачивание файла:###
+### Сценарий: скачивание файла:
 1. Клиент отправляет в API Gateway запрос GET /files/{file_id} с токеном в заголовке Authorization или публичным share token.
 2. API Gateway проверяет токен через Auth Service или share token через Sharing Service.
 3. После успешной проверки API Gateway перенаправляет запрос в File Service.
@@ -172,7 +204,7 @@ sequenceDiagram
   APIGateway-->>Client: Передача файла
 ```
 
-### Сценарий: создание публичной ссылки (share link)###
+### Сценарий: создание публичной ссылки (share link)
 1. Клиент отправляет в API Gateway запрос POST /files/{file_id}/share с параметрами public и expires_seconds.
 2. API Gateway проверяет токен через Auth Service.
 3. API Gateway перенаправляет запрос в Sharing Service.
@@ -203,7 +235,7 @@ sequenceDiagram
   APIGateway-->>Client: Share link
   ```
 
-### Сценарий: передача файла другому пользователю (transfer):###
+### Сценарий: передача файла другому пользователю (transfer):
 1. Клиент отправляет в API Gateway запрос POST /files/{file_id}/transfer с параметром to_username.
 2. API Gateway проверяет токен через Auth Service.
 3. API Gateway перенаправляет запрос в File Service.
