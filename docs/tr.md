@@ -55,17 +55,12 @@
 4. Нажимает кнопку "отправить".
 5. Файл сохраняется в системе.
 
-### Сценарий: выгрузка файла
+### Сценарий: скачивание файла
 1. Пользователь находит необходимый файл в личном облаке\облаке, к которому имеет доступ.
 2. Пользователь нажимает кнопку "скачать файл".
 3. На экране пользователя появляется окно выбора диска для загрузки нового файла.
 4. Пользователь выбирает место выгрузки файла, нажимает кнопку "скачать".
 5. Файл скачивается на диске у пользователя.
-
-### Сценарий: редактирование документа в облаке
-1. Пользователь открывает файл в личном облаке.
-2. Просто просматривает его, либо редактирует.
-3. Все изменения автоматически сохраняются в системе
 
 ### Сценарий: предоставление владельцем облака доступа другому пользователю
 1. Владелец облака А копирует ссылку на свое облако из личного кабинета, делится ей с другими пользователями.
@@ -141,6 +136,32 @@ graph TD
 ---
 
 ## Технические сценарии
+### Сценарий: регистрация нового пользователя
+1. Клиент отправляет в API Gateway запрос POST /auth/register с личными данными (логин, пароль, e-mail).
+2. API Gateway перенаправляет запрос в Auth Service.
+3. Auth Service проверяет, что логин не занят, и хэширует пароль.
+4. Auth Service создает новую запись пользователя в Metadata DB.
+5. Auth Service создает токен сессии (access token).
+6. Auth Service возвращает токен в API Gateway.
+7. API Gateway возвращает успешный ответ клиенту с токеном и данными пользователя.
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant APIGateway
+  participant AuthService
+  participant MetadataDB
+
+  Client->>APIGateway: POST /auth/register (логин, пароль, email)
+  APIGateway->>AuthService: Запрос регистрации
+  AuthService->>MetadataDB: Проверка уникальности логина
+  MetadataDB-->>AuthService: OK
+  AuthService->>MetadataDB: Создание пользователя
+  MetadataDB-->>AuthService: OK
+  AuthService-->>APIGateway: Токен сессии
+  APIGateway-->>Client: Регистрация успешна
+```
+
 ### Сценарий: загрузка файла
 1. Клиент отправляет в API Gateway запрос POST /upload с файлом и токеном сессии в заголовке Authorization.
 2. API Gateway проверяет токен через Auth Service.
@@ -264,69 +285,6 @@ sequenceDiagram
   FileService-->>APIGateway: Успех
   APIGateway-->>Client: Файл передан
   ```
-
-### Сценарий: регистрация нового пользователя
-1. Клиент отправляет в API Gateway запрос POST /auth/register с личными данными (логин, пароль, e-mail).
-2. API Gateway перенаправляет запрос в Auth Service.
-3. Auth Service проверяет, что логин не занят, и хэширует пароль.
-4. Auth Service создает новую запись пользователя в Metadata DB.
-5. Auth Service создает токен сессии (access token).
-6. Auth Service возвращает токен в API Gateway.
-7. API Gateway возвращает успешный ответ клиенту с токеном и данными пользователя.
-
-```mermaid
-sequenceDiagram
-  participant Client
-  participant APIGateway
-  participant AuthService
-  participant MetadataDB
-
-  Client->>APIGateway: POST /auth/register (логин, пароль, email)
-  APIGateway->>AuthService: Запрос регистрации
-  AuthService->>MetadataDB: Проверка уникальности логина
-  MetadataDB-->>AuthService: OK
-  AuthService->>MetadataDB: Создание пользователя
-  MetadataDB-->>AuthService: OK
-  AuthService-->>APIGateway: Токен сессии
-  APIGateway-->>Client: Регистрация успешна
-```
-
-### Сценарий: редактирование документа в облаке
-1. Клиент открывает документ и начинает его редактировать.
-2. Клиент через API Gateway периодически отправляет PUT /files/{file_id} с обновлённым содержимым файла (или патчем).
-3. API Gateway проверяет токен через Auth Service.
-4. API Gateway перенаправляет запрос в File Service.
-5. File Service проверяет права доступа к файлу через Metadata DB.
-6. File Service обновляет содержимое файла в File Storage.
-7. File Service обновляет timestamp версии файла в Metadata DB.
-8. File Service отправляет сообщение в Analytics/Logging Service об изменении файла.
-9. File Service возвращает API Gateway подтверждение.
-10. API Gateway уведомляет клиента об успешном сохранении изменений.
-
-```mermaid
-sequenceDiagram
-  participant Client
-  participant APIGateway
-  participant AuthService
-  participant FileService
-  participant FileStorage
-  participant MetadataDB
-  participant Analytics
-
-  Client->>APIGateway: PUT /files/{file_id} (новое содержимое)
-  APIGateway->>AuthService: Проверка токена
-  AuthService-->>APIGateway: OK
-  APIGateway->>FileService: Обновление файла
-  FileService->>MetadataDB: Проверка доступа
-  MetadataDB-->>FileService: OK
-  FileService->>FileStorage: Перезаписать файл
-  FileStorage-->>FileService: OK
-  FileService->>MetadataDB: Обновление timestamp
-  MetadataDB-->>FileService: OK
-  FileService->>Analytics: Логирование события
-  FileService-->>APIGateway: Успех
-  APIGateway-->>Client: Изменения сохранены
-```
 
 ### Сценарий: предоставление владельцем облака доступа другому пользователю (через ссылку на облако)
 1. Клиент (владелец) отправляет в API Gateway запрос POST /share/account или POST /share/folder/{id} с параметрами доступа.
