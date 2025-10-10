@@ -45,7 +45,7 @@
 ### Сценарий: регистрация нового пользователя
 1. Пользователь нажимает кнопку "регистрация".
 2. Пользователь вводит личные данные (логин, пароль).
-3. Происходит проверка, существует ли такой пользователь, если нет, то создается аккаунт.
+3. Происходит проверка, существует ли такой пользователь, если нет, то создается аккаунт. Если под введенными данными уже существует пользователь - выведется ошибка, пользователю предложится ввсети данные снова. 
 4. Пользователь попадает в личный кабинет, получает доступ к интерфейсу.
 
 ### Сценарий: загрузка файла
@@ -92,7 +92,11 @@
 
 ***File Storage / FS*** — физическое хранилище файлов (локальная файловая система или объектное хранилище). File Service взаимодействует с ним для сохранения и чтения файлов.
 
-***Metadata DB*** — база данных для хранения информации о пользователях, файлах, ACL, сессиях и share-токенах (например, BoltDB, SQLite или PostgreSQL).
+***Auth DB*** — пользователи, хэши паролей, токены;
+
+***File DB***— метаданные файлов, владельцы, ACL;
+
+***Sharing DB*** — токены доступа и их связь с файлами.
 
 **Взаимодействие компонентов:**
 
@@ -119,58 +123,61 @@ graph TD
   end
 
   subgraph Databases
+    AuthDB[(Auth DB)]
+    FileDB[(File DB)]
+    SharingDB[(Sharing DB)]
     FileStorage[(File Storage)]
-    MetadataDB[(Metadata DB)]
   end
 
   UserApp -->|REST/HTTP| APIGateway
   APIGateway -->|gRPC/HTTP| AuthService
   APIGateway -->|gRPC/HTTP| FileService
   APIGateway -->|gRPC/HTTP| SharingService
-  AuthService -->|SQL| MetadataDB
-  FileService -->|SQL| MetadataDB
+
+  AuthService -->|SQL| AuthDB
+  FileService -->|SQL| FileDB
   FileService -->|Файлы| FileStorage
-  SharingService -->|SQL| MetadataDB
+  SharingService -->|SQL| SharingDB
+  SharingService -->|gRPC| FileService
 ```
 
 ---
 
 ## Технические сценарии
 ### Сценарий: регистрация нового пользователя
-1. Клиент отправляет в API Gateway запрос POST /auth/register с личными данными (логин, пароль, e-mail).
+1. Клиент отправляет запрос POST /auth/register с логином и паролем.
 2. API Gateway перенаправляет запрос в Auth Service.
-3. Auth Service проверяет, что логин не занят, и хэширует пароль.
-4. Auth Service создает новую запись пользователя в Metadata DB.
-5. Auth Service создает токен сессии (access token).
+3. Auth Service проверяет уникальность логина в Auth DB.
+4. Если логин свободен — хэширует пароль и сохраняет пользователя в Auth DB.
+5. Генерируется токен доступа.
 6. Auth Service возвращает токен в API Gateway.
-7. API Gateway возвращает успешный ответ клиенту с токеном и данными пользователя.
+7. API Gateway возвращает успешный ответ клиенту.
 
 ```mermaid
 sequenceDiagram
   participant Client
   participant APIGateway
   participant AuthService
-  participant MetadataDB
+  participant AuthDB
 
-  Client->>APIGateway: POST /auth/register (логин, пароль, email)
+  Client->>APIGateway: POST /auth/register (логин, пароль)
   APIGateway->>AuthService: Запрос регистрации
-  AuthService->>MetadataDB: Проверка уникальности логина
-  MetadataDB-->>AuthService: OK
-  AuthService->>MetadataDB: Создание пользователя
-  MetadataDB-->>AuthService: OK
+  AuthService->>AuthDB: Проверка уникальности логина
+  AuthDB-->>AuthService: OK
+  AuthService->>AuthDB: Создание пользователя
+  AuthDB-->>AuthService: OK
   AuthService-->>APIGateway: Токен сессии
   APIGateway-->>Client: Регистрация успешна
 ```
 
 ### Сценарий: загрузка файла
-1. Клиент отправляет в API Gateway запрос POST /upload с файлом и токеном сессии в заголовке Authorization.
+1. Клиент отправляет в API Gateway запрос POST /upload с файлом и токеном.
 2. API Gateway проверяет токен через Auth Service.
-3. После успешной аутентификации API Gateway перенаправляет запрос в File Service.
-4. File Service сохраняет файл во временное хранилище, затем перемещает его в основное File Storage.
-5. File Service создает запись метаданных в Metadata DB.
-6. File Service отправляет событие в Logging/Analytics Service (опционально).
-7. File Service возвращает API Gateway подтверждение успешной загрузки с file_id.
-8. API Gateway возвращает ответ клиенту.
+3. После проверки API Gateway перенаправляет запрос в File Service.
+4. File Service сохраняет файл в File Storage.
+5. File Service сохраняет метаданные (имя, размер, владелец, ACL) в File DB.
+6. File Service уведомляет Analytics Service (опционально).
+7. Возвращается file_id клиенту.
 
 ```mermaid
 sequenceDiagram
@@ -178,31 +185,28 @@ sequenceDiagram
   participant APIGateway
   participant AuthService
   participant FileService
+  participant FileDB
   participant FileStorage
-  participant MetadataDB
-  participant Analytics
 
-  Client->>APIGateway: POST /upload (файл, Authorization)
+  Client->>APIGateway: POST /upload (файл, токен)
   APIGateway->>AuthService: Проверка токена
   AuthService-->>APIGateway: OK
-  APIGateway->>FileService: Запрос загрузки файла
-  FileService->>FileStorage: Сохранить файл
-  FileStorage-->>FileService: Файл сохранен
-  FileService->>MetadataDB: Создать запись метаданных
-  MetadataDB-->>FileService: OK
-  FileService->>Analytics: Логирование события
-  FileService-->>APIGateway: Успех (file_id)
+  APIGateway->>FileService: Загрузить файл
+  FileService->>FileStorage: Сохранение файла
+  FileStorage-->>FileService: Успех
+  FileService->>FileDB: Создание записи метаданных
+  FileDB-->>FileService: OK
+  FileService-->>APIGateway: file_id
   APIGateway-->>Client: Файл загружен
 ```
 
 ### Сценарий: скачивание файла:
-1. Клиент отправляет в API Gateway запрос GET /files/{file_id} с токеном в заголовке Authorization или публичным share token.
-2. API Gateway проверяет токен через Auth Service или share token через Sharing Service.
-3. После успешной проверки API Gateway перенаправляет запрос в File Service.
-4. File Service проверяет права доступа пользователя к файлу (ACL).
-5. File Service считывает файл из File Storage.
-6. File Service возвращает поток файла в API Gateway.
-7. API Gateway передает файл клиенту.
+1. Клиент делает запрос GET /files/{file_id} (с токеном или share token).
+2. API Gateway проверяет токен через Auth Service, либо передаёт share token в Sharing Service.
+3. Sharing Service ищет токен в Sharing DB.
+4. Если токен валиден, Sharing Service запрашивает права доступа у File Service (через API).
+5. File Service проверяет ACL в File DB.
+6. Если разрешено, File Service получает файл из File Storage и возвращает его.
 
 ```mermaid
 sequenceDiagram
@@ -210,29 +214,34 @@ sequenceDiagram
   participant APIGateway
   participant AuthService
   participant SharingService
+  participant SharingDB
   participant FileService
+  participant FileDB
   participant FileStorage
 
-  Client->>APIGateway: GET /files/{file_id} (Authorization/ShareToken)
+  Client->>APIGateway: GET /files/{file_id} (Authorization / ShareToken)
   APIGateway->>AuthService: Проверка токена
   AuthService-->>APIGateway: OK
-  APIGateway->>SharingService: Проверка share token (если есть)
-  SharingService-->>APIGateway: OK
-  APIGateway->>FileService: Запрос файла
+  APIGateway->>SharingService: Проверка share token
+  SharingService->>SharingDB: Проверка токена
+  SharingDB-->>SharingService: OK
+  SharingService->>FileService: Проверка прав доступа
+  FileService->>FileDB: Проверка ACL
+  FileDB-->>FileService: OK
   FileService->>FileStorage: Чтение файла
   FileStorage-->>FileService: Файл
   FileService-->>APIGateway: Файл (stream)
-  APIGateway-->>Client: Передача файла
+  APIGateway-->>Client: Файл скачан
 ```
 
 ### Сценарий: создание публичной ссылки (share link)
-1. Клиент отправляет в API Gateway запрос POST /files/{file_id}/share с параметрами public и expires_seconds.
+1. Клиент вызывает POST /files/{id}/share.
 2. API Gateway проверяет токен через Auth Service.
-3. API Gateway перенаправляет запрос в Sharing Service.
-4. Sharing Service проверяет права пользователя на файл через File Service/Metadata DB.
-5. Sharing Service генерирует уникальный share token и сохраняет его в Metadata DB.
-6. Sharing Service возвращает API Gateway ссылку для доступа к файлу.
-7. API Gateway возвращает ссылку клиенту.
+3. API Gateway передаёт запрос в Sharing Service.
+4. Sharing Service вызывает File Service, чтобы проверить, есть ли у пользователя право поделиться файлом.
+5. File Service проверяет права в File DB и возвращает результат.
+6. Если доступ разрешён, Sharing Service создаёт share token и сохраняет его в Sharing DB.
+7. Sharing Service возвращает ссылку клиенту.
 
 ```mermaid
 sequenceDiagram
@@ -240,31 +249,32 @@ sequenceDiagram
   participant APIGateway
   participant AuthService
   participant SharingService
-  participant MetadataDB
+  participant SharingDB
   participant FileService
+  participant FileDB
 
-  Client->>APIGateway: POST /files/{file_id}/share (public, expires)
+  Client->>APIGateway: POST /files/{id}/share
   APIGateway->>AuthService: Проверка токена
   AuthService-->>APIGateway: OK
-  APIGateway->>SharingService: Создание share token
-  SharingService->>FileService: Проверка прав доступа
-  FileService->>MetadataDB: Проверка ACL
-  MetadataDB-->>FileService: OK
-  SharingService->>MetadataDB: Сохранение share token
-  MetadataDB-->>SharingService: OK
-  SharingService-->>APIGateway: Share link
-  APIGateway-->>Client: Share link
+  APIGateway->>SharingService: Запрос создания share link
+  SharingService->>FileService: Проверка прав на файл
+  FileService->>FileDB: Проверка ACL
+  FileDB-->>FileService: OK
+  FileService-->>SharingService: Доступ разрешён
+  SharingService->>SharingDB: Сохранение share token
+  SharingDB-->>SharingService: OK
+  SharingService-->>APIGateway: share link
+  APIGateway-->>Client: ссылка создана
   ```
 
 ### Сценарий: передача файла другому пользователю (transfer):
-1. Клиент отправляет в API Gateway запрос POST /files/{file_id}/transfer с параметром to_username.
+1. Клиент отправляет POST /files/{id}/transfer (to_username).
 2. API Gateway проверяет токен через Auth Service.
 3. API Gateway перенаправляет запрос в File Service.
-4. File Service проверяет, что пользователь — владелец файла.
-5. File Service обновляет ACL или меняет владельца файла в Metadata DB.
-6. File Service логирует операцию в Analytics/Logging Service.
-7. File Service возвращает API Gateway подтверждение успешной передачи.
-8. API Gateway возвращает ответ клиенту.
+4. File Service проверяет владельца в File DB.
+5. Обновляет ACL или владельца в File DB.
+6. (Опционально) File Service уведомляет Analytics Service.
+7. Возвращает подтверждение клиенту.
 
 ```mermaid
 sequenceDiagram
@@ -287,16 +297,13 @@ sequenceDiagram
   ```
 
 ### Сценарий: предоставление владельцем облака доступа другому пользователю (через ссылку на облако)
-1. Клиент (владелец) отправляет в API Gateway запрос POST /share/account или POST /share/folder/{id} с параметрами доступа.
-2. API Gateway проверяет токен через Auth Service.
-3. API Gateway перенаправляет запрос в Sharing Service.
-4. Sharing Service создает share token на весь аккаунт или выбранный каталог и сохраняет его в Metadata DB.
-5. Sharing Service возвращает API Gateway ссылку.
-6. API Gateway возвращает ссылку клиенту.
-7. Другой пользователь открывает ссылку — отправляет запрос в API Gateway GET /share/{token}.
-8. API Gateway проверяет share token в Sharing Service.
-9. Sharing Service возвращает список доступных файлов и разрешения.
-10. API Gateway возвращает данные клиенту, который получает доступ к облаку владельца.
+1. Владелец отправляет POST /share/folder/{id}.
+2. API Gateway проверяет токен в Auth Service.
+3. Sharing Service создаёт токен и сохраняет в Sharing DB.
+4. Другой пользователь открывает ссылку → API Gateway → Sharing Service.
+5. Sharing Service проверяет токен в Sharing DB и обращается к File Service для получения списка доступных файлов.
+6. File Service достаёт данные из File DB и возвращает их.
+7. Sharing Service возвращает результат клиенту.
 
 ```mermaid
 sequenceDiagram
@@ -359,7 +366,13 @@ sequenceDiagram
 - Тесты на отказоустойчиваость
 
 #### Dod:
-- Все функции работают
+- Все функции работают:
+  • регистрация нового пользователя
+  • загрузка файла
+  • скачивание файла
+  • предоставление владельцем облака доступа другому пользователю
+  • передача данных между пользователем A и пользователем B
+  • передача доступа к данным между пользователем A и пользователем B
 - Есть front
 - Проект проходит проверки
 - Проект одобрен преподавателями
