@@ -26,9 +26,9 @@
 
 ## Функциональные требования
 Система должна предоставлять следующие функции:
-1. Загрузка файлов
-2. Скачивание
-3. Передача файлов между клиентами
+1. Загрузка файлов.
+2. Скачивание.
+3. Передача файлов между клиентами.
 
 ---
 
@@ -45,12 +45,12 @@
 ### Сценарий: регистрация нового пользователя
 1. Пользователь нажимает кнопку "регистрация".
 2. Пользователь вводит личные данные (логин, пароль).
-3. Происходит проверка, существует ли такой пользователь, если нет, то создается аккаунт. Если под введенными данными уже существует пользователь - выведется ошибка, пользователю предложится ввсети данные снова. 
+3. Происходит проверка, существует ли такой пользователь, если нет, то создается аккаунт. Если под введенными данными уже существует пользователь - выведется ошибка, пользователю предложится ввеcти данные снова. 
 4. Пользователь попадает в личный кабинет, получает доступ к интерфейсу.
 
 ### Сценарий: загрузка файла
 1. Пользователь выбирает загрузку файла.
-2. На экране пользователя появляется окно выбора с возможностью "перетащить файл", "загрузить файл с диска"
+2. На экране пользователя появляется окно выбора с возможностью "Перетащить файл", "Загрузить файл с диска"
 3. Пользователь выбирает способ загрузки файла, загружает файл.
 4. Нажимает кнопку "отправить".
 5. Файл сохраняется в системе.
@@ -100,11 +100,13 @@
 
 **Взаимодействие компонентов:**
 
-Клиент → API Gateway → Auth Service (для аутентификации).
+Клиент → API Gateway → Auth Service → Auth DB (Аутентификация пользователей)
 
-Клиент → API Gateway → File Service → File Storage / Metadata DB (для операций с файлами).
+Клиент → API Gateway → File Service → File Storage / File DB (Работа с файлами)
 
-File Service → Sharing Service → Metadata DB (для создания и проверки share-токенов).
+Клиент → API Gateway → Sharing Service → Sharing DB (Проверка и создание ссылок)
+
+Sharing Service → File Service → File DB (для проверки прав доступа через API, а не напрямую)
 
 ```mermaid
 graph TD
@@ -278,22 +280,25 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant Client
+  participant Client as Пользователь A
   participant APIGateway
   participant AuthService
   participant FileService
-  participant MetadataDB
-  participant Analytics
+  participant FileDB
+  participant Analytics as Analytics/Logging Service
 
   Client->>APIGateway: POST /files/{file_id}/transfer (to_username)
   APIGateway->>AuthService: Проверка токена
   AuthService-->>APIGateway: OK
   APIGateway->>FileService: Передача файла
-  FileService->>MetadataDB: Проверка владельца и обновление ACL
-  MetadataDB-->>FileService: OK
+  FileService->>FileDB: Проверка владельца и ACL
+  FileDB-->>FileService: Разрешение подтверждено
+  FileService->>FileDB: Обновление владельца / ACL
+  FileDB-->>FileService: Успех
   FileService->>Analytics: Логирование события
-  FileService-->>APIGateway: Успех
+  FileService-->>APIGateway: Подтверждение успешной передачи
   APIGateway-->>Client: Файл передан
+
   ```
 
 ### Сценарий: предоставление владельцем облака доступа другому пользователю (через ссылку на облако)
@@ -307,28 +312,39 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant Owner
+  participant Owner as Владелец
   participant APIGateway
   participant AuthService
   participant SharingService
-  participant MetadataDB
-  participant Guest
+  participant SharingDB
+  participant FileService
+  participant FileDB
+  participant Guest as Пользователь B
 
-  Owner->>APIGateway: POST /share/account (настройки доступа)
+  Owner->>APIGateway: POST /share/account или /share/folder/{id} (настройки доступа)
   APIGateway->>AuthService: Проверка токена
   AuthService-->>APIGateway: OK
   APIGateway->>SharingService: Создание share token
-  SharingService->>MetadataDB: Сохранить токен
-  MetadataDB-->>SharingService: OK
-  SharingService-->>APIGateway: Share link
-  APIGateway-->>Owner: Ссылка готова
+  SharingService->>FileService: Проверка прав доступа к облаку
+  FileService->>FileDB: Проверка ACL
+  FileDB-->>FileService: OK
+  FileService-->>SharingService: Разрешение подтверждено
+  SharingService->>SharingDB: Сохранение share token
+  SharingDB-->>SharingService: OK
+  SharingService-->>APIGateway: Share link готов
+  APIGateway-->>Owner: Ссылка создана
 
   Guest->>APIGateway: GET /share/{token}
-  APIGateway->>SharingService: Проверка токена
-  SharingService->>MetadataDB: Проверить доступ
-  MetadataDB-->>SharingService: OK
-  SharingService-->>APIGateway: Список доступных данных
+  APIGateway->>SharingService: Проверка share token
+  SharingService->>SharingDB: Проверка токена
+  SharingDB-->>SharingService: OK
+  SharingService->>FileService: Получение списка доступных файлов
+  FileService->>FileDB: Проверка ACL и сбор данных
+  FileDB-->>FileService: Доступ подтверждён
+  FileService-->>SharingService: Список файлов
+  SharingService-->>APIGateway: Передача списка файлов
   APIGateway-->>Guest: Доступ к облаку владельца
+
 ```
 
 ---
@@ -339,34 +355,35 @@ sequenceDiagram
 Проектирование архитектуры (API Gateway, Auth, File Storage, Collaboration, Analytics, Notifications), Настройка окружения и CI/CD, Подготовка схем БД.
 
 #### Этап 2 — Пользователи и доступ
-Реализация сервиса Auth: регистрация, аутентификация, управление сессиями и токенами
-Интеграция Auth с API Gateway
-Настройка ролей и прав доступа
+Реализация сервиса Auth: регистрация, аутентификация, управление сессиями и токенами.
+Интеграция Auth с API Gateway.
+Настройка ролей и прав доступа.
 
 #### Этап 3 — Файловое хранилище
-Реализация сервиса FileStorage: загрузка файла, выгрузка файла, хранение метаданных (владелец, права доступа, история изменений)
-Интеграция с API Gateway
+Реализация сервиса FileStorage: загрузка файла, выгрузка файла, хранение метаданных (владелец, права доступа, история изменений).
+Интеграция с API Gateway.
 
 #### Тестирование:
-- Модульные и интеграционные тесты
-- Проверка прав доступа и граничных случаев
+- Модульные и интеграционные тесты.
+- Проверка прав доступа и граничных случаев.
 
 #### DoD:
-- Работают регистрация, вход, загрузка и скачивание файлов
-- Все компоненты покрыты тестами
+- Работают регистрация, вход, загрузка и скачивание файлов.
+- Все компоненты покрыты тестами.
 
 ### Расширенный проект
 #### Этап 4 — Совместная работа и редактирование
-Реализация сервиса Collaboration: открытие файла в режиме редактирования, автоматическое сохранение изменений
-Интеграция Collaboration с FileStorage
+Реализация сервиса Collaboration: открытие файла в режиме редактирования, автоматическое сохранение изменений.
+Интеграция Collaboration с FileStorage.
 
 #### Тестирование:
-- Тесты на совместную работу
-- Нагрузочные тесты
-- Тесты на отказоустойчиваость
+- Тесты на совместную работу.
+- Нагрузочные тесты.
+- Тесты на отказоустойчивость.
 
 #### Dod:
 - Все функции работают:
+  
   • регистрация нового пользователя
   
   • загрузка файла
@@ -379,5 +396,5 @@ sequenceDiagram
 
   • передача доступа к данным между пользователем A и пользователем B
   
-- Проект проходит проверки
-- Проект одобрен преподавателями
+- Проект проходит проверки.
+- Проект одобрен преподавателями.
