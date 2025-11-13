@@ -1,2 +1,32 @@
 .vscode/
 .idea/
+
+# --- ОС / редакторы ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- Go build output ---
+bin/
+build/
+dist/
+*.exe
+*.out
+*.test
+
+# --- Кэш go / зависимости ---
+# (эти файлы создаются автоматически и не должны попадать в git)
+vendor/
+go.sum
+
+# --- Логи и временные файлы ---
+*.log
+*.tmp
+*.bak
+
+# --- Конфиги окружения ---
+.env
+.env.local
+.env.*
