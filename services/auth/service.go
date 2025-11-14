@@ -32,3 +32,12 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
   s.users[u.Username] = hex.EncodeToString(h[:])
   w.WriteHeader(http.StatusCreated)
 }
+
+func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
+  var u User
+  if err := json.NewDecoder(r.Body).Decode(&u); err != nil {http.Error(w,"bad",400); return }
+  h := sha256.Sum256([]byte(u.Password))
+  s.mu.Lock(); hash, ok := s.users[u.Username]; s.mu.Unlock()
+  if !ok || hex.EncodeToString(h[:]) != hash { http.Error(w,"unauthorized",401); return }
+  w.Write([]byte("OK"))
+}
