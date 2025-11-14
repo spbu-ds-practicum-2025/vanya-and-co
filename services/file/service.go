@@ -29,3 +29,15 @@ func (s *FileService) Upload(w http.ResponseWriter, r *http.Request) {
 	}()
 	w.WriteHeader(http.StatusAccepted)
 }
+
+func (s *FileService) Download(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	s.mu.RLock()
+	v, ok := s.store[id]
+	s.mu.RUnlock()
+	if !ok {
+		http.Error(w, "not found", 404)
+		return
+	}
+	w.Write(v.Data)
+}
