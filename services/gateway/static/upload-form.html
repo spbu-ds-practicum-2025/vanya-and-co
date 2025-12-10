@@ -1,17 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Загрузка файла</title>
-</head>
-<body>
+<h2>Upload file</h2>
 
-<h2>Загрузить файл</h2>
-
-<form action="/files/upload" method="POST" enctype="multipart/form-data">
-    <input type="file" name="myfile"><br><br>
-    <button type="submit">Загрузить</button>
+<form action="/files/upload" method="post" enctype="multipart/form-data">
+    File:
+    <input type="file" name="file"><br><br>
+    <button type="submit">Upload file</button>
 </form>
 
-</body>
-</html>
+<br><br>
+<a href="/files/list">Show file list</a>
