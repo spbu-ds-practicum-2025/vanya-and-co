@@ -13,12 +13,21 @@ import (
 type FileService struct {
 	BasePath  string
 	MaxSizeMB int
+	Cluster *ReplicaCluster
 }
 
 func New(base string, maxSizeMB int) *FileService {
-	os.MkdirAll(base, os.ModePerm)
-	return &FileService{BasePath: base, MaxSizeMB: maxSizeMB}
+    os.MkdirAll(base, os.ModePerm)
+
+    cluster := NewCluster(base, 3) //можно менять
+
+    return &FileService{
+        BasePath:  base,
+        MaxSizeMB: maxSizeMB,
+        Cluster:   cluster,
+    }
 }
+
 
 // UPLOAD
 func (s *FileService) Upload(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +57,12 @@ func (s *FileService) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer out.Close()
 
-	io.Copy(out, file)
+	savedBytes, _ := io.ReadAll(file)
+	os.WriteFile(dst, savedBytes, os.ModePerm)
+
+	// репликация на все узлы
+	s.Cluster.Write(filename, savedBytes)
+
 
 	fmt.Fprintf(w, "uploaded ok: %s\n", filename)
 	fmt.Fprintf(w, `<br><a href="/files/list">Show files</a>`)
@@ -75,20 +89,28 @@ func (s *FileService) List(w http.ResponseWriter, r *http.Request) {
 					border-radius:4px;
 					color:white;
 					margin-right:6px;
+					font-size:14px;
 				}
-				.btn-view { background:#4CAF50 }
 				.btn-download { background:#2196F3 }
 				.btn-delete { background:#FF5252 }
 			</style>
 		</head>
 		<body>
 			<h1>Files</h1>
+
 			<a href="/upload-form.html">⬆ Upload file</a>
 			<br><br>
+
 			<table>
 	`))
 
 	for _, f := range files {
+
+		// пропускаем папки (node1, node2, node3)
+		if f.IsDir() {
+			continue
+		}
+
 		name := f.Name()
 
 		w.Write([]byte(fmt.Sprintf(
@@ -96,13 +118,12 @@ func (s *FileService) List(w http.ResponseWriter, r *http.Request) {
 				<tr>
 					<td>%s</td>
 					<td>
-						<a class="button btn-view" href="/files/view?name=%s">View</a>
 						<a class="button btn-download" href="/files/download?name=%s">Download</a>
 						<a class="button btn-delete" href="/files/delete?name=%s">Delete</a>
 					</td>
 				</tr>
 			`,
-			name, name, name, name,
+			name, name, name,
 		)))
 	}
 
@@ -114,18 +135,50 @@ func (s *FileService) List(w http.ResponseWriter, r *http.Request) {
 }
 
 
-// VIEW — просмотр файлов (картинки откроются прямо в браузере)
+
+/*// VIEW — просмотр файлов (картинки откроются прямо в браузере)
 func (s *FileService) View(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filepath.Join(s.BasePath, r.URL.Query().Get("name")))
-}
+}*/
 
 // DOWNLOAD
 func (s *FileService) Download(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, filepath.Join(s.BasePath, r.URL.Query().Get("name")))
+	name := r.URL.Query().Get("name")
+
+	// пробуем читать из обычного диска
+	data, err := os.ReadFile(filepath.Join(s.BasePath, name))
+	if err == nil {
+		w.Write(data)
+		return
+	}
+
+	// иначе читаем из кластера
+	if data, ok := s.Cluster.ReadAny(name); ok {
+		w.Write(data)
+		return
+	}
+
+	http.Error(w, "file not found", 404)
 }
+
 
 // DELETE
 func (s *FileService) Delete(w http.ResponseWriter, r *http.Request) {
-	os.Remove(filepath.Join(s.BasePath, r.URL.Query().Get("name")))
-	http.Redirect(w, r, "/files/list", 302)
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "no name", 400)
+		return
+	}
+
+	mainFile := filepath.Join(s.BasePath, name)
+
+	// удаляем с основного диска
+	os.Remove(mainFile)
+
+	// удаляем с узлов
+	s.Cluster.Delete(name)
+
+	http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 }
+
+
