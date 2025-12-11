@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -31,42 +32,47 @@ func New(base string, maxSizeMB int) *FileService {
 
 // UPLOAD
 func (s *FileService) Upload(w http.ResponseWriter, r *http.Request) {
+    r.Body = http.MaxBytesReader(w, r.Body, int64(s.MaxSizeMB<<20))
+    r.ParseMultipartForm(10 << 20)
 
-	// ограничение
-	r.Body = http.MaxBytesReader(w, r.Body, int64(s.MaxSizeMB<<20))
+    id := uuid.New().String()
 
-	r.ParseMultipartForm(10 << 20)
+    file, handler, err := r.FormFile("file")
+    if err != nil {
+        http.Error(w, "no file", 400)
+        return
+    }
+    defer file.Close()
 
-	id := uuid.New().String()
+    cleanName := filepath.Base(handler.Filename)
+    cleanName = strings.ReplaceAll(cleanName, " ", "_")
 
-	file, handler, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "no file", 400)
-		return
-	}
-	defer file.Close()
+    filename := id + "-" + cleanName
+    dst := filepath.Join(s.BasePath, filename)
 
-	filename := id + "-" + handler.Filename
+    // читаем файл полностью (важно для бинарных)
+    content, err := io.ReadAll(file)
+    if err != nil {
+        http.Error(w, "read error", 500)
+        return
+    }
 
-	dst := filepath.Join(s.BasePath, filename)
+    // сохраняем строго 1 раз
+    err = os.WriteFile(dst, content, 0666)
+    if err != nil {
+        http.Error(w, "write error", 500)
+        return
+    }
 
-	out, err := os.Create(dst)
-	if err != nil {
-		http.Error(w, "can't save", 500)
-		return
-	}
-	defer out.Close()
+    // репликация
+    s.Cluster.Write(filename, content)
 
-	savedBytes, _ := io.ReadAll(file)
-	os.WriteFile(dst, savedBytes, os.ModePerm)
-
-	// репликация на все узлы
-	s.Cluster.Write(filename, savedBytes)
-
-
-	fmt.Fprintf(w, "uploaded ok: %s\n", filename)
-	fmt.Fprintf(w, `<br><a href="/files/list">Show files</a>`)
+    fmt.Fprintf(w, "uploaded ok: %s\n", filename)
+    fmt.Fprintf(w, `<br><a href="/files/list">Show files</a>`)
 }
+
+
+
 
 // LIST
 func (s *FileService) List(w http.ResponseWriter, r *http.Request) {
@@ -135,31 +141,35 @@ func (s *FileService) List(w http.ResponseWriter, r *http.Request) {
 }
 
 
-
-/*// VIEW — просмотр файлов (картинки откроются прямо в браузере)
-func (s *FileService) View(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, filepath.Join(s.BasePath, r.URL.Query().Get("name")))
-}*/
-
 // DOWNLOAD
 func (s *FileService) Download(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
+    name := r.URL.Query().Get("name")
+    if name == "" {
+        http.Error(w, "no name", 400)
+        return
+    }
 
-	// пробуем читать из обычного диска
-	data, err := os.ReadFile(filepath.Join(s.BasePath, name))
-	if err == nil {
-		w.Write(data)
-		return
-	}
+    path := filepath.Join(s.BasePath, name)
+    data, err := os.ReadFile(path)
 
-	// иначе читаем из кластера
-	if data, ok := s.Cluster.ReadAny(name); ok {
-		w.Write(data)
-		return
-	}
+    if err == nil {
+        w.Header().Set("Content-Type", "application/octet-stream")
+        w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+        w.Write(data)
+        return
+    }
 
-	http.Error(w, "file not found", 404)
+    if data, ok := s.Cluster.ReadAny(name); ok {
+        w.Header().Set("Content-Type", "application/octet-stream")
+        w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+        w.Write(data)
+        return
+    }
+
+    http.Error(w, "file not found", 404)
 }
+
+
 
 
 // DELETE
@@ -170,7 +180,7 @@ func (s *FileService) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mainFile := filepath.Join(s.BasePath, name)
+	mainFile := filepath.Clean(filepath.Join(s.BasePath, name))
 
 	// удаляем с основного диска
 	os.Remove(mainFile)
