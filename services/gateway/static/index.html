@@ -1,8 +1,46 @@
 <h1>Cloud Storage</h1>
 
-<ul>
-    <li><a href="register-form.html">Регистрация</a></li>
-    <li><a href="login-form.html">Логин</a></li>
-    <li><a href="upload-form.html">Загрузка файла</a></li>
-    <li><a href="/files/list">Просмотр файлов</a></li>
-</ul>
+<div id="auth-controls">
+    <ul>
+        <li><a href="/static/register-form.html">Регистрация</a></li>
+        <li><a href="/static/login-form.html">Вход</a></li>
+    </ul>
+</div>
+
+<div id="file-menu" style="display:none;">
+    <ul>
+        <li><a href="/static/upload-form.html">Загрузка файла</a></li>
+        <li><a href="/files/list">Просмотр файлов</a></li>
+        <li><a href="#" id="logout-link">Выйти</a></li>
+    </ul>
+</div>
+
+<script>
+function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? match[2] : null;
+}
+
+function updateUI() {
+    const token = getCookie('session');
+    if (token) {
+        document.getElementById('auth-controls').style.display = 'none';
+        document.getElementById('file-menu').style.display = '';
+    } else {
+        document.getElementById('auth-controls').style.display = '';
+        document.getElementById('file-menu').style.display = 'none';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    updateUI();
+    document.getElementById('logout-link').addEventListener('click', function (e) {
+        e.preventDefault();
+            fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }).then(() => {
+            // best effort to clear cookie; server should expire it
+            document.cookie = 'session=; Max-Age=0; path=/';
+            updateUI();
+        });
+    });
+});
+</script>

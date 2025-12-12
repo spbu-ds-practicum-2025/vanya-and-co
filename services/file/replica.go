@@ -1,69 +1,62 @@
 package file
 
 import (
-	_"io"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
-  "fmt"
 )
 
 type ReplicaCluster struct {
-	nodes []string // список папок-узлов
+	nodes []string // список путей к папкам-узлов (node1, node2...)
 }
 
-// создаём кластер
+// Создаём кластер
 func NewCluster(base string, n int) *ReplicaCluster {
 	nodes := make([]string, n)
-
 	for i := range nodes {
-		nodes[i] = filepath.Join(base, "node"+fmt.Sprint(i+1))
-		os.MkdirAll(nodes[i], os.ModePerm)
+		nodes[i] = filepath.Join(base, fmt.Sprintf("node%d", i+1))
+		_ = os.MkdirAll(nodes[i], os.ModePerm)
 	}
-
 	return &ReplicaCluster{nodes: nodes}
 }
 
 // replicate: записать файл на все узлы
-func (c *ReplicaCluster) Write(filename string, data []byte) {
-
+// relPath должен иметь формат "username/filename"
+func (c *ReplicaCluster) Write(relPath string, data []byte) {
 	for _, nodePath := range c.nodes {
-
 		go func(p string) {
-
 			// Симуляция задержки сети
 			time.Sleep(time.Duration(50+rand.Intn(200)) * time.Millisecond)
 
-			dst := filepath.Join(p, filename)
+			// Полный путь: .../data/node1/username/file.txt
+			dst := filepath.Join(p, relPath)
+
+			// ВАЖНО: Создаем папку пользователя внутри ноды, иначе WriteFile упадет
+			_ = os.MkdirAll(filepath.Dir(dst), os.ModePerm)
 
 			// Запись
-			os.WriteFile(dst, data, os.ModePerm)
-
+			_ = os.WriteFile(dst, data, os.ModePerm)
 		}(nodePath)
 	}
 }
 
 // прочитать файл с любого узла
-func (c *ReplicaCluster) ReadAny(filename string) ([]byte, bool) {
-
+func (c *ReplicaCluster) ReadAny(relPath string) ([]byte, bool) {
 	for _, nodePath := range c.nodes {
-
-		path := filepath.Join(nodePath, filename)
-
+		path := filepath.Join(nodePath, relPath)
 		if data, err := os.ReadFile(path); err == nil {
 			return data, true
 		}
 	}
-
 	return nil, false
 }
 
 // удалить файл со всех узлов
-func (c *ReplicaCluster) Delete(filename string) {
-
+func (c *ReplicaCluster) Delete(relPath string) {
 	for _, nodePath := range c.nodes {
-		path := filepath.Join(nodePath, filename)
-		os.Remove(path)
+		path := filepath.Join(nodePath, relPath)
+		_ = os.Remove(path)
 	}
 }
