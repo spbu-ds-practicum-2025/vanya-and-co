@@ -1,71 +1,80 @@
 package sharing
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/spbu-ds-practicum-2025/vanya-and-co.git/services/file"
+	"vanya-and-co/services/file"
 )
 
-// FileChecker — минимальный интерфейс для проверки существования файла.
-// Мы используем ReplicaCluster через этот интерфейс.
+// FileChecker — интерфейс для проверки существования файла
 type FileChecker interface {
-	// Exists возвращает true, если файл с таким id есть в кластере.
-	Exists(fileID string) bool
+	Exists(relPath string) bool
 }
 
+// memFileChecker - адаптер для ReplicaCluster
 type memFileChecker struct {
 	cluster *file.ReplicaCluster
 }
 
-func (m *memFileChecker) Exists(fileID string) bool {
-	_, ok := m.cluster.ReadAny(fileID)
+func (m *memFileChecker) Exists(relPath string) bool {
+	_, ok := m.cluster.ReadAny(relPath)
 	return ok
 }
 
-// ShareLink - in-memory share record
+// ShareLink - запись о шаринге
 type ShareLink struct {
 	Token     string     `json:"token"`
-	FileID    string     `json:"fileId"`
-	OwnerID   string     `json:"ownerId,omitempty"`
+	FileID    string     `json:"fileId"`     // формат: username/filename
+	OwnerID   string     `json:"ownerId"`    // владелец файла
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 }
 
 type Service struct {
-	mu         sync.Mutex
-	links      map[string]ShareLink
+	mu          sync.RWMutex
+	links       map[string]ShareLink
 	fileChecker FileChecker
-	ttl        time.Duration
+	ttl         time.Duration
 }
 
-// NewInMemory creates in-memory sharing service.
-// cluster — указатель на ReplicaCluster для проверки существования файла.
-// ttl — время жизни ссылки (0 = без истечения).
-func NewInMemory(cluster *file.ReplicaCluster, ttl time.Duration) *Service {
+// New создает сервис шаринга
+func New(cluster *file.ReplicaCluster, ttl time.Duration) *Service {
 	return &Service{
-		links:      make(map[string]ShareLink),
+		links:       make(map[string]ShareLink),
 		fileChecker: &memFileChecker{cluster: cluster},
-		ttl:        ttl,
+		ttl:         ttl,
 	}
 }
 
-// Create creates a share link: POST /share/create?file=<id>&owner=<ownerID>
-// returns {"token":"...","expiresAt": "..."}
+// Create создает ссылку для общего доступа
+// POST /share/create?file=username/filename&owner=username
 func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
-	fileID := r.URL.Query().Get("file")
-	owner := r.URL.Query().Get("owner") // optional owner id
+	fileID := r.URL.Query().Get("file")    // формат: username/filename
+	owner := r.URL.Query().Get("owner")    // владелец
+
 	if fileID == "" {
-		http.Error(w, "missing file parameter", http.StatusBadRequest)
+		http.Error(w, `{"error": "missing file parameter"}`, http.StatusBadRequest)
 		return
 	}
 
-	// проверяем, существует ли файл в FileService / ReplicaCluster
+	if owner == "" {
+		// Пытаемся извлечь owner из fileID (формат: username/filename)
+		if len(fileID) < 3 || len(fileID.Split("/")) < 2 {
+			http.Error(w, `{"error": "file must be in format username/filename"}`, http.StatusBadRequest)
+			return
+		}
+		owner = strings.Split(fileID, "/")[0]
+	}
+
+	// Проверяем, существует ли файл
 	if !s.fileChecker.Exists(fileID) {
-		http.Error(w, "file not found", http.StatusNotFound)
+		http.Error(w, `{"error": "file not found"}`, http.StatusNotFound)
 		return
 	}
 
@@ -92,69 +101,148 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(link)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token":     token,
+		"file":      fileID,
+		"owner":     owner,
+		"expiresAt": expires,
+		"shareUrl":  fmt.Sprintf("/share/%s", token),
+	})
 }
 
-// Get returns link by token: GET /share/get?token=...
+// Get возвращает информацию о ссылке
+// GET /share/:token
 func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
+	// Извлекаем token из URL пути
+	token := r.URL.Path[len("/share/"):]
 	if token == "" {
-		http.Error(w, "missing token parameter", http.StatusBadRequest)
+		http.Error(w, `{"error": "token required"}`, http.StatusBadRequest)
 		return
 	}
 
-	s.mu.Lock()
+	s.mu.RLock()
 	link, ok := s.links[token]
-	s.mu.Unlock()
+	s.mu.RUnlock()
+
 	if !ok {
-		http.Error(w, "share link not found", http.StatusNotFound)
+		http.Error(w, `{"error": "share link not found"}`, http.StatusNotFound)
 		return
 	}
 
-	// проверяем TTL
+	// Проверяем срок действия
 	if link.ExpiresAt != nil && time.Now().UTC().After(*link.ExpiresAt) {
-		// автоматическое удаление просроченной ссылки
 		s.mu.Lock()
 		delete(s.links, token)
 		s.mu.Unlock()
-		http.Error(w, "share link expired", http.StatusGone)
+		http.Error(w, `{"error": "share link expired"}`, http.StatusGone)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(link)
+	json.NewEncoder(w).Encode(link)
 }
 
-// Revoke revokes token: DELETE /share/revoke?token=...
-func (s *Service) Revoke(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
+// Download позволяет скачать файл по токену
+// GET /share/:token/download
+func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Path[len("/share/"):]
 	if token == "" {
-		http.Error(w, "missing token parameter", http.StatusBadRequest)
+		http.Error(w, `{"error": "token required"}`, http.StatusBadRequest)
 		return
 	}
+
+	// Удаляем "/download" из пути если есть
+	if len(token) > 8 && token[len(token)-8:] == "/download" {
+		token = token[:len(token)-8]
+	}
+
+	s.mu.RLock()
+	link, ok := s.links[token]
+	s.mu.RUnlock()
+
+	if !ok {
+		http.Error(w, `{"error": "share link not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Проверяем срок действия
+	if link.ExpiresAt != nil && time.Now().UTC().After(*link.ExpiresAt) {
+		s.mu.Lock()
+		delete(s.links, token)
+		s.mu.Unlock()
+		http.Error(w, `{"error": "share link expired"}`, http.StatusGone)
+		return
+	}
+
+	// Редирект на скачивание файла
+	// Формат: /files/download?name=filename&user=username
+	parts := strings.Split(link.FileID, "/")
+	if len(parts) != 2 {
+		http.Error(w, `{"error": "invalid file format"}`, http.StatusBadRequest)
+		return
+	}
+	
+	username := parts[0]
+	filename := parts[1]
+	
+	http.Redirect(w, r, fmt.Sprintf("/files/download?name=%s&user=%s", filename, username), http.StatusFound)
+}
+
+// Revoke отзывает ссылку
+// DELETE /share/:token
+func (s *Service) Revoke(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Path[len("/share/"):]
+	if token == "" {
+		http.Error(w, `{"error": "token required"}`, http.StatusBadRequest)
+		return
+	}
+
 	s.mu.Lock()
 	_, ok := s.links[token]
 	if ok {
 		delete(s.links, token)
 	}
 	s.mu.Unlock()
+
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, `{"error": "not found"}`, http.StatusNotFound)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "share link revoked",
+	})
 }
 
-func generateToken() string {
-	// 8 chars URL-safe tokens
-	b := make([]byte, 6)
-	now := time.Now().UnixNano()
-	// простая псевдо-энтропия: комбинация времени и rand — OK для MVP
-	r := (now % 1000000)
-	for i := range b {
-		b[i] = byte((r>>uint(i*5))&0x3F) + 48
+// List возвращает все ссылки пользователя
+// GET /share/list?owner=username
+func (s *Service) List(w http.ResponseWriter, r *http.Request) {
+	owner := r.URL.Query().Get("owner")
+	if owner == "" {
+		http.Error(w, `{"error": "owner parameter required"}`, http.StatusBadRequest)
+		return
 	}
-	return fmt.Sprintf("%x", time.Now().UnixNano())[:12]
+
+	s.mu.RLock()
+	userLinks := []ShareLink{}
+	for _, link := range s.links {
+		if link.OwnerID == owner {
+			userLinks = append(userLinks, link)
+		}
+	}
+	s.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"count": len(userLinks),
+		"links": userLinks,
+	})
 }
 
-
+// generateToken генерирует безопасный токен
+func generateToken() string {
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
