@@ -25,21 +25,24 @@ function updateUI() {
     const token = getCookie('session');
     if (token) {
         document.getElementById('auth-controls').style.display = 'none';
-        document.getElementById('file-menu').style.display = '';
+        document.getElementById('file-menu').style.display = 'block';
     } else {
-        document.getElementById('auth-controls').style.display = '';
+        document.getElementById('auth-controls').style.display = 'block';
         document.getElementById('file-menu').style.display = 'none';
     }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
     updateUI();
-    document.getElementById('logout-link').addEventListener('click', function (e) {
+    
+    document.getElementById('logout-link').addEventListener('click', function(e) {
         e.preventDefault();
-            fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }).then(() => {
-            // best effort to clear cookie; server should expire it
-            document.cookie = 'session=; Max-Age=0; path=/';
-            updateUI();
+        fetch('/auth/logout', { 
+            method: 'POST', 
+            credentials: 'same-origin' 
+        }).then(() => {
+            // Перенаправляем на страницу логина
+            window.location.href = '/static/login-form.html';
         });
     });
 });
