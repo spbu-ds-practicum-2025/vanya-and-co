@@ -133,10 +133,12 @@ func (s *FileService) List(w http.ResponseWriter, r *http.Request, username stri
 		// Ссылки на действия
 		fmt.Fprintf(w, `
 			<tr>
-				<td>%s</td>
-				<td style="text-align:right">
-					<a class="btn dl" href="/files/download?name=%s">Скачать</a>
-					<a class="btn del" href="/files/delete?name=%s">Удалить</a>
+				<td style="word-break: break-all; max-width: 400px;">%s</td>
+				<td style="min-width: 150px;">
+					<div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
+						<a class="btn dl" href="/files/download?name=%s">Скачать</a>
+						<a class="btn del" href="/files/delete?name=%s">Удалить</a>
+					</div>
 				</td>
 			</tr>`, name, name, name)
 	}
