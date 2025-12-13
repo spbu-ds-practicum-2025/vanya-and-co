@@ -1,0 +1,58 @@
+<h2>Мои ссылки для общего доступа</h2>
+
+<table id="sharesTable" style="width:100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+        <tr style="background: #eee;">
+            <th style="padding:10px; border:1px solid #ddd;">Файл</th>
+            <th style="padding:10px; border:1px solid #ddd;">Ссылка</th>
+            <th style="padding:10px; border:1px solid #ddd;">Создана</th>
+            <th style="padding:10px; border:1px solid #ddd;">Истекает</th>
+            <th style="padding:10px; border:1px solid #ddd;">Действия</th>
+        </tr>
+    </thead>
+    <tbody id="sharesBody">
+        <tr><td colspan="5" style="text-align:center;">Загрузка...</td></tr>
+    </tbody>
+</table>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Загружаем ссылки пользователя
+    fetch('/share/list')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('sharesBody');
+            tbody.innerHTML = '';
+            
+            if (data.count === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Нет созданных ссылок</td></tr>';
+                return;
+            }
+            
+            data.links.forEach(link => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td style="padding:10px; border:1px solid #ddd;">${link.fileId}</td>
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        <a href="/share/${link.token}/download">Скачать</a>
+                    </td>
+                    <td style="padding:10px; border:1px solid #ddd;">${new Date(link.createdAt).toLocaleString()}</td>
+                    <td style="padding:10px; border:1px solid #ddd;">${link.expiresAt ? new Date(link.expiresAt).toLocaleString() : 'Бессрочно'}</td>
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        <button onclick="revokeShare('${link.token}')" style="background:#f44336; color:white; border:none; padding:5px 10px; cursor:pointer;">
+                            Отозвать
+                        </button>
+                    </td>
+                `;
+            });
+        });
+
+    window.revokeShare = function(token) {
+        if (confirm('Отозвать ссылку?')) {
+            fetch(`/share/${token}`, { method: 'DELETE' })
+                .then(() => location.reload())
+                .catch(err => alert('Ошибка: ' + err.message));
+        }
+    };
+});
+</script>

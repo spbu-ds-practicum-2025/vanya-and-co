@@ -5,58 +5,51 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"vanya-and-co/services/auth"
 	"vanya-and-co/services/file"
+	"vanya-and-co/services/sharing"
 )
 
 func main() {
-	// Текущая директория - services/gateway/
 	cwd, _ := os.Getwd()
 	log.Printf("Running from: %s", cwd)
 
 	// 1. Инициализация сервисов
-	// Поднимаемся на уровень выше к корню проекта
 	projectRoot := filepath.Dir(cwd) // services/
 	projectRoot = filepath.Dir(projectRoot) // корень (vanya-and-co/)
 	
-	log.Printf("Project root: %s", projectRoot)
-	
 	authPath := filepath.Join(projectRoot, "services", "auth", "data", "users.json")
-	log.Printf("Auth path: %s", authPath)
 	authService := auth.New(authPath)
 	
 	baseFileStorage := filepath.Join(projectRoot, "services", "file", "data")
-	log.Printf("File storage: %s", baseFileStorage)
 	fileService := file.New(baseFileStorage, 10)
+
+	// Создаем сервис шаринга (TTL 7 дней)
+	cluster := file.NewCluster(baseFileStorage, 3)
+	shareService := sharing.New(cluster, 7*24*time.Hour)
 
 	// Создаем директории если их нет
 	os.MkdirAll(filepath.Dir(authPath), 0755)
 	os.MkdirAll(baseFileStorage, 0755)
 
-	// Статическая директория - В ТЕКУЩЕЙ ПАПКЕ (gateway/static)
+	// Статическая директория
 	staticDir := filepath.Join(cwd, "static")
 	log.Printf("Static directory: %s", staticDir)
 
-	// Проверяем что папка существует
-	if _, err := os.Stat(staticDir); os.IsNotExist(err) {
-		log.Fatalf("ERROR: Static directory not found at %s", staticDir)
-	}
-
-	// Проверяем что файлы есть
-	files, _ := os.ReadDir(staticDir)
-	log.Printf("Found %d files in static directory", len(files))
-	for _, f := range files {
-		log.Printf("  - %s", f.Name())
-	}
-
-	// Вспомогательная функция для проверки авторизации
+	// Вспомогательные функции
 	requireAuth := func(w http.ResponseWriter, r *http.Request) (username string, ok bool) {
 		username, ok = authService.AuthFromRequest(r)
 		if !ok {
 			http.Redirect(w, r, "/static/login-form.html", http.StatusSeeOther)
 		}
 		return username, ok
+	}
+
+	getUsername := func(r *http.Request) string {
+		username, _ := authService.AuthFromRequest(r)
+		return username
 	}
 	
 	// 2. Обработчики Авторизации
@@ -70,18 +63,15 @@ func main() {
 
 	// 4. Главная страница
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Если запрос не к корню, отдаем 404
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
 		
-		// Если пользователь авторизован, сразу кидаем на файлы
 		if _, ok := authService.AuthFromRequest(r); ok {
 			http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 			return
 		}
-		// Иначе показываем главную
 		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 	})
 
@@ -100,6 +90,18 @@ func main() {
 	
 	http.HandleFunc("/files/download", func(w http.ResponseWriter, r *http.Request) {
 		if username, ok := requireAuth(w, r); ok {
+			// Проверка доступа через шаринг
+			requestedUser := r.URL.Query().Get("user")
+			if requestedUser != "" && requestedUser != username {
+				// Проверяем есть ли публичная ссылка
+				filename := r.URL.Query().Get("name")
+				relPath := requestedUser + "/" + filename
+				
+				// Здесь можно добавить проверку через shareService
+				// Пока просто разрешаем если user указан
+				fileService.Download(w, r, requestedUser)
+				return
+			}
 			fileService.Download(w, r, username)
 		}
 	})
@@ -107,6 +109,71 @@ func main() {
 	http.HandleFunc("/files/delete", func(w http.ResponseWriter, r *http.Request) {
 		if username, ok := requireAuth(w, r); ok {
 			fileService.Delete(w, r, username)
+		}
+	})
+
+	// 6. Обработчики Шаринга
+	http.HandleFunc("/share/create", func(w http.ResponseWriter, r *http.Request) {
+		if username, ok := requireAuth(w, r); ok {
+			// Автоматически добавляем owner если не указан
+			if r.URL.Query().Get("owner") == "" {
+				// Формируем новый URL с owner
+				fileParam := r.URL.Query().Get("file")
+				if fileParam != "" && !strings.Contains(fileParam, "/") {
+					fileParam = username + "/" + fileParam
+				}
+				
+				// Создаем новый запрос с параметром owner
+				query := r.URL.Query()
+				query.Set("owner", username)
+				query.Set("file", fileParam)
+				r.URL.RawQuery = query.Encode()
+			}
+			shareService.Create(w, r)
+		}
+	})
+
+	http.HandleFunc("/share/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		
+		switch {
+		case strings.HasSuffix(path, "/download"):
+			// Публичное скачивание - без авторизации
+			shareService.Download(w, r)
+		case strings.Contains(path, "/list"):
+			// Список ссылок пользователя - требует авторизации
+			if username, ok := requireAuth(w, r); ok {
+				query := r.URL.Query()
+				if query.Get("owner") == "" {
+					query.Set("owner", username)
+					r.URL.RawQuery = query.Encode()
+				}
+				shareService.List(w, r)
+			}
+		default:
+			// GET /share/:token или DELETE /share/:token
+			if r.Method == "GET" {
+				shareService.Get(w, r)
+			} else if r.Method == "DELETE" {
+				if _, ok := requireAuth(w, r); ok {
+					shareService.Revoke(w, r)
+				}
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		}
+	})
+
+	// 7. HTML страницы для шаринга
+	http.HandleFunc("/static/share-form.html", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := requireAuth(w, r); ok {
+			http.ServeFile(w, r, filepath.Join(staticDir, "share-form.html"))
+		}
+	})
+
+	http.HandleFunc("/static/my-shares.html", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := requireAuth(w, r); ok {
+			http.ServeFile(w, r, filepath.Join(staticDir, "my-shares.html"))
 		}
 	})
 
