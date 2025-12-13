@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +43,7 @@ type Service struct {
 	links       map[string]ShareLink
 	fileChecker FileChecker
 	ttl         time.Duration
+	cluster     *file.ReplicaCluster
 }
 
 // New создает сервис шаринга
@@ -49,6 +52,7 @@ func New(cluster *file.ReplicaCluster, ttl time.Duration) *Service {
 		links:       make(map[string]ShareLink),
 		fileChecker: &memFileChecker{cluster: cluster},
 		ttl:         ttl,
+		cluster:     cluster,
 	}
 }
 
@@ -65,7 +69,7 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
 
 	if owner == "" {
 		// Пытаемся извлечь owner из fileID (формат: username/filename)
-		if len(fileID) < 3 || len(fileID.Split("/")) < 2 {
+		if !strings.Contains(fileID, "/") {
 			http.Error(w, `{"error": "file must be in format username/filename"}`, http.StatusBadRequest)
 			return
 		}
@@ -184,7 +188,17 @@ func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 	
 	username := parts[0]
 	filename := parts[1]
-	
+
+	if s.cluster != nil {
+		rel := filepath.Join(username, filename)
+		if data, ok := s.cluster.ReadAny(rel); ok {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+			w.Write(data)
+			return
+		}
+	}
+
 	http.Redirect(w, r, fmt.Sprintf("/files/download?name=%s&user=%s", filename, username), http.StatusFound)
 }
 
