@@ -11,56 +11,48 @@ import (
 	"sync"
 	"time"
 
-	"vanya-and-co/services/file"
+	"github.com/spbu-ds-practicum-2025/vanya-and-co/services/file"
 )
-
-// FileChecker — интерфейс для проверки существования файла
-type FileChecker interface {
-	Exists(relPath string) bool
-}
-
-// memFileChecker - адаптер для ReplicaCluster
-type memFileChecker struct {
-	cluster *file.ReplicaCluster
-}
-
-func (m *memFileChecker) Exists(relPath string) bool {
-	_, ok := m.cluster.ReadAny(relPath)
-	return ok
-}
 
 // ShareLink - запись о шаринге
 type ShareLink struct {
 	Token     string     `json:"token"`
-	FileID    string     `json:"fileId"`     // формат: username/filename
-	OwnerID   string     `json:"ownerId"`    // владелец файла
+	FileID    string     `json:"fileId"`  // формат: username/filename
+	OwnerID   string     `json:"ownerId"` // владелец файла
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 }
 
 type Service struct {
-	mu          sync.RWMutex
-	links       map[string]ShareLink
-	fileChecker FileChecker
-	ttl         time.Duration
-	cluster     *file.ReplicaCluster
+	mu      sync.RWMutex
+	links   map[string]ShareLink
+	cluster *file.ReplicaCluster
+	ttl     time.Duration
 }
 
 // New создает сервис шаринга
 func New(cluster *file.ReplicaCluster, ttl time.Duration) *Service {
-	return &Service{
-		links:       make(map[string]ShareLink),
-		fileChecker: &memFileChecker{cluster: cluster},
-		ttl:         ttl,
-		cluster:     cluster,
+	if cluster == nil {
+		cluster = file.NewCluster(0)
 	}
+	return &Service{
+		links:   make(map[string]ShareLink),
+		cluster: cluster,
+		ttl:     ttl,
+	}
+}
+
+func generateToken() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Create создает ссылку для общего доступа
 // POST /share/create?file=username/filename&owner=username
 func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
-	fileID := r.URL.Query().Get("file")    // формат: username/filename
-	owner := r.URL.Query().Get("owner")    // владелец
+	fileID := r.URL.Query().Get("file") // формат: username/filename
+	owner := r.URL.Query().Get("owner") // владелец
 
 	if fileID == "" {
 		http.Error(w, `{"error": "missing file parameter"}`, http.StatusBadRequest)
@@ -74,12 +66,6 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		owner = strings.Split(fileID, "/")[0]
-	}
-
-	// Проверяем, существует ли файл
-	if !s.fileChecker.Exists(fileID) {
-		http.Error(w, `{"error": "file not found"}`, http.StatusNotFound)
-		return
 	}
 
 	token := generateToken()
@@ -105,7 +91,7 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"token":     token,
 		"file":      fileID,
 		"owner":     owner,
@@ -114,10 +100,8 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Get возвращает информацию о ссылке
-// GET /share/:token
+// Get returns info about a share link (GET /share/{token})
 func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
-	// Извлекаем token из URL пути
 	token := r.URL.Path[len("/share/"):]
 	if token == "" {
 		http.Error(w, `{"error": "token required"}`, http.StatusBadRequest)
@@ -133,7 +117,6 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверяем срок действия
 	if link.ExpiresAt != nil && time.Now().UTC().After(*link.ExpiresAt) {
 		s.mu.Lock()
 		delete(s.links, token)
@@ -143,11 +126,11 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(link)
+	_ = json.NewEncoder(w).Encode(link)
 }
 
 // Download позволяет скачать файл по токену
-// GET /share/:token/download
+// GET /share/{token}/download
 func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Path[len("/share/"):]
 	if token == "" {
@@ -155,9 +138,9 @@ func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Удаляем "/download" из пути если есть
-	if len(token) > 8 && token[len(token)-8:] == "/download" {
-		token = token[:len(token)-8]
+	// remove trailing /download if present
+	if strings.HasSuffix(token, "/download") {
+		token = strings.TrimSuffix(token, "/download")
 	}
 
 	s.mu.RLock()
@@ -169,7 +152,6 @@ func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверяем срок действия
 	if link.ExpiresAt != nil && time.Now().UTC().After(*link.ExpiresAt) {
 		s.mu.Lock()
 		delete(s.links, token)
@@ -178,14 +160,12 @@ func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Редирект на скачивание файла
-	// Формат: /files/download?name=filename&user=username
 	parts := strings.Split(link.FileID, "/")
 	if len(parts) != 2 {
 		http.Error(w, `{"error": "invalid file format"}`, http.StatusBadRequest)
 		return
 	}
-	
+
 	username := parts[0]
 	filename := parts[1]
 
@@ -194,7 +174,7 @@ func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 		if data, ok := s.cluster.ReadAny(rel); ok {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
-			w.Write(data)
+			_, _ = w.Write(data)
 			return
 		}
 	}
@@ -203,7 +183,7 @@ func (s *Service) Download(w http.ResponseWriter, r *http.Request) {
 }
 
 // Revoke отзывает ссылку
-// DELETE /share/:token
+// DELETE /share/{token}
 func (s *Service) Revoke(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Path[len("/share/"):]
 	if token == "" {
@@ -224,9 +204,7 @@ func (s *Service) Revoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "share link revoked",
-	})
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "share link revoked"})
 }
 
 // List возвращает все ссылки пользователя
@@ -248,15 +226,5 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"count": len(userLinks),
-		"links": userLinks,
-	})
-}
-
-// generateToken генерирует безопасный токен
-func generateToken() string {
-	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"count": len(userLinks), "links": userLinks})
 }
