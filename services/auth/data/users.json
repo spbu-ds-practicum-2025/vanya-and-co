@@ -1,5 +1,1 @@
-{
-  "alice": "d74ff0ee8da3b9806b18c877dbf29bbde50b5bd8e4dad7a3a725000feb82e8f1",
-  "login1": "af63af252de35359abc9a5837dfb78c6fb6b14683d3e36ba955ada61f1a83551",
-  "testuser": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
-}
+[{"username":"login1","password":"pas1"}]
