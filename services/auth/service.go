@@ -196,5 +196,5 @@ func (s *AuthService) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	// Удаляем куку и редиректим на логин (Условие 2)
 	http.SetCookie(w, &http.Cookie{Name: "session", Value: "", Path: "/", MaxAge: -1})
-	http.Redirect(w, r, "/static/login-form.html", http.StatusSeeOther)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
