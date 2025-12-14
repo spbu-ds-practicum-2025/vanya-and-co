@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -60,7 +61,8 @@ func main() {
 	cwd, _ := os.Getwd()
 	log.Printf("Running from: %s", cwd)
 
-	staticDir := filepath.Join(cwd, "static")
+	// Use gateway's local static directory
+	staticDir := filepath.Join(cwd, "services", "gateway", "cmd", "server", "static")
 	log.Printf("Static directory: %s", staticDir)
 
 	authAddr := getEnv("AUTH_ADDR", "http://localhost:5100")
@@ -93,7 +95,26 @@ func main() {
 			http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+		// try serve static index.html if present, otherwise show built-in homepage
+		idx := filepath.Join(staticDir, "index.html")
+		if _, err := os.Stat(idx); err == nil {
+			http.ServeFile(w, r, idx)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		io.WriteString(w, `<!doctype html>
+<html><head><meta charset="utf-8"><title>vanya-and-co Gateway</title></head><body>
+<h1>vanya-and-co Gateway</h1>
+<p>This is a development gateway. Use the links below to explore services:</p>
+<ul>
+  <li><a href="/auth/register?user=alice&pass=secret">Register (example)</a></li>
+  <li><a href="/auth/login?user=alice&pass=secret">Login (example)</a></li>
+  <li><a href="/files/list">Files (requires login)</a></li>
+  <li><a href="/static/login-form.html">Login form (if present)</a></li>
+  <li><a href="/static/share-form.html">Share form (if present)</a></li>
+  <li><a href="/static/my-shares.html">My shares (if present)</a></li>
+</ul>
+</body></html>`)
 	})
 
 	http.Handle("/files/", proxyWithUser(fileURL, authAddr))
@@ -115,6 +136,7 @@ func main() {
 		http.Redirect(w, r, "/static/login-form.html", http.StatusSeeOther)
 	})
 
-	log.Println("Gateway starting on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := getEnv("PORT", "8080")
+	fmt.Printf("Gateway starting on http://localhost:%s\n", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
