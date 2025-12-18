@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"log"
@@ -10,6 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
+
+	"context"
+
+	authpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb"
+	_ "modernc.org/sqlite"
 )
 
 type User struct {
@@ -19,56 +26,71 @@ type User struct {
 
 type AuthService struct {
 	mu       sync.Mutex
-	users    map[string]string // username -> password
-	path     string            // путь к файлу users.json
-	sessions map[string]string // token -> username
+	db       *sql.DB
+	path     string               // путь к файлу auth.db
+	sessions map[string]time.Time // token -> expires
 }
 
-func New(usersPath string) *AuthService {
-	if usersPath == "" {
+func New(dbPath string) *AuthService {
+	if dbPath == "" {
 		cwd, _ := os.Getwd()
-		usersPath = filepath.Join(cwd, "services", "auth", "data", "users.json")
+		dbPath = filepath.Join(cwd, "services", "auth", "data", "auth.db")
 	}
-
-	s := &AuthService{
-		users:    make(map[string]string),
-		path:     usersPath,
-		sessions: make(map[string]string),
+	_ = os.MkdirAll(filepath.Dir(dbPath), 0o755)
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		log.Fatalf("open db: %v", err)
 	}
-	
-	_ = os.MkdirAll(filepath.Dir(usersPath), 0o755)
-	s.load()
+	s := &AuthService{db: db, path: dbPath, sessions: make(map[string]time.Time)}
+	if err := s.migrate(); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
 	return s
 }
 
+// WhoAmIToken looks up username by session token
+func (s *AuthService) WhoAmIToken(token string) (string, bool) {
+	var username string
+	var exp int64
+	if err := s.db.QueryRow(`SELECT username, expires FROM sessions WHERE token = ?`, token).Scan(&username, &exp); err != nil {
+		return "", false
+	}
+	if time.Now().Unix() > exp {
+		return "", false
+	}
+	return username, true
+}
+
+// Implement gRPC server for Auth
+func (s *AuthService) WhoAmI(ctx context.Context, req *authpb.WhoAmIRequest) (*authpb.WhoAmIResponse, error) {
+	if req == nil || req.Token == "" {
+		return &authpb.WhoAmIResponse{Username: ""}, nil
+	}
+	if u, ok := s.WhoAmIToken(req.Token); ok {
+		return &authpb.WhoAmIResponse{Username: u}, nil
+	}
+	return &authpb.WhoAmIResponse{Username: ""}, nil
+}
+
 func (s *AuthService) load() {
-	f, err := os.Open(s.path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	var users []User
-	if err := json.NewDecoder(f).Decode(&users); err == nil {
-		for _, u := range users {
-			s.users[u.Username] = u.Password
-		}
-	}
+	// legacy: users were stored in JSON file; DB is now canonical
 }
 
 func (s *AuthService) save() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var users []User
-	for u, p := range s.users {
-		users = append(users, User{Username: u, Password: p})
+	// legacy
+}
+
+func (s *AuthService) migrate() error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT);`,
+		`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT, expires INTEGER);`,
 	}
-	f, err := os.Create(s.path)
-	if err != nil {
-		log.Println("Error saving users:", err)
-		return
+	for _, q := range stmts {
+		if _, err := s.db.Exec(q); err != nil {
+			return err
+		}
 	}
-	defer f.Close()
-	json.NewEncoder(f).Encode(users)
+	return nil
 }
 
 // Проверка токена (middleware)
@@ -77,10 +99,16 @@ func (s *AuthService) AuthFromRequest(r *http.Request) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	s.mu.Lock()
-	username, ok := s.sessions[cookie.Value]
-	s.mu.Unlock()
-	return username, ok
+	var username string
+	var exp int64
+	err = s.db.QueryRow(`SELECT username, expires FROM sessions WHERE token = ?`, cookie.Value).Scan(&username, &exp)
+	if err != nil {
+		return "", false
+	}
+	if time.Now().Unix() > exp {
+		return "", false
+	}
+	return username, true
 }
 
 // Вспомогательная функция для установки сессии
@@ -88,39 +116,49 @@ func (s *AuthService) setSession(w http.ResponseWriter, username string) {
 	tokenBytes := make([]byte, 16)
 	_, _ = rand.Read(tokenBytes)
 	token := hex.EncodeToString(tokenBytes)
-
-	s.mu.Lock()
-	s.sessions[token] = username
-	s.mu.Unlock()
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session",
-		Value:    token,
-		Path:     "/", 
-		HttpOnly: true,
-	})
+	expires := time.Now().Add(24 * time.Hour)
+	if _, err := s.db.Exec(`INSERT INTO sessions (token, username, expires) VALUES (?, ?, ?)`, token, username, expires.Unix()); err != nil {
+		log.Println("setSession insert error:", err)
+	}
+	http.SetCookie(w, &http.Cookie{Name: "session", Value: token, Path: "/", Expires: expires, HttpOnly: true})
 }
 
 // Login - Вход
 func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", 400)
-		return
-	}
-	u := r.FormValue("username")
-	p := r.FormValue("password")
+	var u, p string
 	isForm := r.Header.Get("Content-Type") == "application/x-www-form-urlencoded"
+	if isForm {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		u = r.FormValue("username")
+		p = r.FormValue("password")
+	} else if r.Header.Get("Content-Type") == "application/json" {
+		var body struct{ Username, Password string }
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		u = body.Username
+		p = body.Password
+	} else {
+		// try form as fallback
+		_ = r.ParseForm()
+		u = r.FormValue("username")
+		p = r.FormValue("password")
+	}
 
-	s.mu.Lock()
-	savedPwd, exists := s.users[u]
-	s.mu.Unlock()
+	var savedPwd string
+	err := s.db.QueryRow(`SELECT password FROM users WHERE username = ?`, u).Scan(&savedPwd)
+	exists := err == nil
 
 	// Условие 3: Ошибка, если логин не найден или пароль неверен
 	if !exists || savedPwd != p {
 		if isForm {
 			msg := "пользователя с таким паролем или логином не существует, попробуйте еще раз"
 			// Редирект на форму с ошибкой и очисткой полей
-			http.Redirect(w, r, "/static/login-form.html?error="+url.QueryEscape(msg), http.StatusSeeOther) 
+			http.Redirect(w, r, "/static/login-form.html?error="+url.QueryEscape(msg), http.StatusSeeOther)
 			return
 		}
 		http.Error(w, "unauthorized", 401)
@@ -140,22 +178,37 @@ func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
 
 // Register - Регистрация
 func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", 400)
-		return
-	}
-	u := r.FormValue("username")
-	p := r.FormValue("password")
+	var u, p string
 	isForm := r.Header.Get("Content-Type") == "application/x-www-form-urlencoded"
+	if isForm {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		u = r.FormValue("username")
+		p = r.FormValue("password")
+	} else if r.Header.Get("Content-Type") == "application/json" {
+		var body struct{ Username, Password string }
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		u = body.Username
+		p = body.Password
+	} else {
+		_ = r.ParseForm()
+		u = r.FormValue("username")
+		p = r.FormValue("password")
+	}
 
 	if u == "" || p == "" {
 		http.Error(w, "empty fields", 400)
 		return
 	}
 
-	s.mu.Lock()
-	_, exists := s.users[u]
-	s.mu.Unlock()
+	var tmp string
+	err := s.db.QueryRow(`SELECT username FROM users WHERE username = ?`, u).Scan(&tmp)
+	exists := err == nil
 
 	// Условие 3: Ошибка, если пользователь уже существует
 	if exists {
@@ -170,10 +223,10 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Создаем пользователя
-	s.mu.Lock()
-	s.users[u] = p
-	s.mu.Unlock()
-	s.save()
+	if _, err := s.db.Exec(`INSERT INTO users (username, password) VALUES (?, ?)`, u, p); err != nil {
+		http.Error(w, "internal", 500)
+		return
+	}
 
 	// Успешная авторизация (Условие 3)
 	s.setSession(w, u)
@@ -183,6 +236,7 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 		return
 	}
+	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("Created"))
 }
 
@@ -190,9 +244,8 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
 func (s *AuthService) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("session")
 	if err == nil {
-		s.mu.Lock()
-		delete(s.sessions, cookie.Value)
-		s.mu.Unlock()
+		// remove session from DB
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = ?`, cookie.Value)
 	}
 	// Удаляем куку и редиректим на логин (Условие 2)
 	http.SetCookie(w, &http.Cookie{Name: "session", Value: "", Path: "/", MaxAge: -1})

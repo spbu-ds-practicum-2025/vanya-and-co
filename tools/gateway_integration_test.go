@@ -11,9 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-
 	"vanya-and-co/services/auth"
-	"vanya-and-co/services/file"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"vanya-and-co/services/file"
+	filepkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file"
 )
 
 func requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -22,7 +22,7 @@ func main() {
 	cwd, _ := os.Getwd()
 	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(cwd)))
 	base := filepath.Join(projectRoot, "services", "file", "data")
-	svc := file.New(base, 10)
+	svc := filepkg.New(base, 10)
 
 	http.HandleFunc("/files/upload", func(w http.ResponseWriter, r *http.Request) {
 		if u, ok := requireUser(w, r); ok {

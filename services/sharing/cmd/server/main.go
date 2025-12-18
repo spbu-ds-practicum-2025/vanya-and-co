@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"vanya-and-co/services/file"
-	"vanya-and-co/services/sharing"
+	filepkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file"
+	sharepkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing"
 )
 
 func main() {
@@ -16,8 +16,8 @@ func main() {
 	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(cwd)))
 	base := filepath.Join(projectRoot, "services", "file", "data")
 
-	cluster := file.NewCluster(base, 3)
-	svc := sharing.New(cluster, 7*24*time.Hour)
+	cluster := filepkg.NewCluster(base, 3)
+	svc := sharepkg.New(cluster, 7*24*time.Hour)
 
 	http.HandleFunc("/share/create", svc.Create)
 	http.HandleFunc("/share/", func(w http.ResponseWriter, r *http.Request) {

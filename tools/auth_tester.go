@@ -11,7 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"bytes"
 	"vanya-and-co/services/auth"
+
+	authpkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth"
 )
 
 func main() {
@@ -41,5 +44,6 @@ func main() {
 	w = httptest.NewRecorder()
 	svc.Login(w, req)
 	resp = w.Result()
+	_ = authpkg.New
 	fmt.Println("login status:", resp.StatusCode)
 }
