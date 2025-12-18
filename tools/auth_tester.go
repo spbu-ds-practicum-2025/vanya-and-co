@@ -21,7 +21,8 @@ func main() {
 	_ = os.Remove(usersPath)
 	_ = os.MkdirAll(filepath.Dir(usersPath), 0o755)
 
-	svc := auth.New(usersPath)
+	svc := auth.New(store)
+
 	// register a test user
 	body := bytes.NewBufferString(`{"username":"testuser","password":"123"}`)
 	req := httptest.NewRequest("POST", "/auth/register", body)
