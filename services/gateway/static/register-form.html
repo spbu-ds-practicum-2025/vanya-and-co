@@ -1,25 +1,69 @@
-<h2>Регистрация</h2>
-
-<form action="/auth/register" method="POST">
-    <div id="error" style="color:red; margin-bottom:8px;"></div>
-    <label>Логин:</label><br>
-    <input type="text" name="username"><br><br>
-
-    <label>Пароль:</label><br>
-    <input type="password" name="password"><br><br>
-
-    <button type="submit">Зарегистрироваться</button>
-</form>
-
-<script>
-    const params = new URLSearchParams(window.location.search);
-    const err = params.get('error');
-    if (err) {
-        document.getElementById('error').textContent = decodeURIComponent(err);
-        // clear fields
-        const u = document.querySelector('input[name=username]');
-        const p = document.querySelector('input[name=password]');
-        if (u) u.value = '';
-        if (p) p.value = '';
-    }
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Vanya-and-co Gateway</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .register-form {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1e7e34;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-form">
+        <h1>Register</h1>
+        <form onsubmit="event.preventDefault(); window.location.href='index.html'; alert('Registration successful! Please login.');">
+            <input type="text" placeholder="Username" required>
+            <input type="email" placeholder="Email" required>
+            <input type="password" placeholder="Password" required>
+            <input type="password" placeholder="Confirm Password" required>
+            <button type="submit">Register</button>
+        </form>
+        <a href="index.html" class="back-link">← Back to Home</a>
+    </div>
+</body>
+</html>

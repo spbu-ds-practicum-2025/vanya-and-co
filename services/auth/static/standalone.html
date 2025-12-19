@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Service</title>
+    <style>
+        body { font-family: Arial; padding: 40px; max-width: 500px; margin: 0 auto; }
+        .service-header { background: #4CAF50; color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+        .form-container { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+    </style>
+</head>
+<body>
+    <div class="service-header">
+        <h2>🔐 Auth Service (Standalone)</h2>
+        <p>Gateway is offline - direct access</p>
+    </div>
+    
+    <div class="form-container">
+        <h3>Login</h3>
+        <form id="loginForm">
+            <input type="text" placeholder="Username" style="width: 100%; padding: 10px; margin: 5px 0;"><br>
+            <input type="password" placeholder="Password" style="width: 100%; padding: 10px; margin: 5px 0;"><br>
+            <button type="submit" style="padding: 10px 20px; background: #4CAF50; color: white; border: none;">Login</button>
+        </form>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+        
+        <div style="margin-top: 30px; font-size: 12px; color: #666;">
+            <p><strong>API Endpoints:</strong></p>
+            <code>POST /api/v1/auth/login</code><br>
+            <code>POST /api/v1/auth/register</code>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('loginForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const response = await fetch('/api/v1/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: e.target[0].value,
+                    password: e.target[1].value
+                })
+            });
+            const data = await response.json();
+            document.getElementById('result').innerHTML = 
+                `<p>Token: <code>${data.token}</code></p>`;
+        };
+    </script>
+</body>
+</html>

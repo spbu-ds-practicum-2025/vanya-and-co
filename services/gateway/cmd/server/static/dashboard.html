@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - Vanya-and-co</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        header {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .service-status {
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-up { background-color: #4CAF50; }
+        .status-down { background-color: #f44336; }
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background-color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .card h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .card p {
+            color: #666;
+            font-size: 14px;
+        }
+        .logout {
+            color: #dc3545;
+            text-decoration: none;
+            font-weight: bold;
+            padding: 8px 16px;
+            border-radius: 5px;
+            border: 1px solid #dc3545;
+        }
+        .logout:hover {
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📊 Dashboard</h1>
+        <a href="index.html" class="logout">Logout</a>
+    </header>
+
+    <div class="service-status" id="serviceStatus">
+        <h3>Service Status</h3>
+        <div id="statusList">Checking services...</div>
+    </div>
+    
+    <div class="card-container">
+        <!-- File Management -->
+        <a href="upload-form.html" class="card">
+            <h3>📤 Upload File</h3>
+            <p>Upload new files to the system</p>
+        </a>
+        
+        <a href="download-form.html" class="card">
+            <h3>📥 Download File</h3>
+            <p>Download existing files</p>
+        </a>
+        
+        <!-- Sharing -->
+        <a href="share-form.html" class="card">
+            <h3>🔗 Create Share</h3>
+            <p>Create a shareable link for files</p>
+        </a>
+        
+        <a href="my-shares.html" class="card">
+            <h3>📋 My Shares</h3>
+            <p>View and manage your shared files</p>
+        </a>
+    </div>
+
+    <script>
+        const services = [
+            { name: "Auth", port: 8001, path: "/health", standalone: "/standalone" },
+            { name: "File", port: 8002, path: "/health", standalone: "/standalone" },
+            { name: "Sharing", port: 8003, path: "/health", standalone: "/standalone" }
+        ];
+
+        async function checkService(service) {
+            try {
+                const response = await fetch(`http://localhost:${service.port}${service.path}`, {
+                    method: 'GET',
+                    mode: 'no-cors', // Используем no-cors чтобы избежать CORS ошибок
+                    cache: 'no-cache'
+                });
+                return true; // Если fetch не выбросил ошибку, сервис доступен
+            } catch (error) {
+                console.log(`${service.name} service error:`, error);
+                return false;
+            }
+        }
+
+        async function updateServiceStatus() {
+            let statusHTML = '';
+            
+            for (const service of services) {
+                const isUp = await checkService(service);
+                statusHTML += `
+                    <div class="status-item">
+                        <div class="status-dot ${isUp ? 'status-up' : 'status-down'}"></div>
+                        <span>${service.name} (port ${service.port})</span>
+                        ${!isUp ? 
+                            `<a href="http://localhost:${service.port}${service.standalone}" target="_blank" 
+                              style="margin-left: auto; font-size: 12px; color: #666;">
+                              [standalone access]
+                            </a>` : 
+                            ''
+                        }
+                    </div>
+                `;
+            }
+            
+            document.getElementById('statusList').innerHTML = statusHTML;
+        }
+
+        // Проверяем статус при загрузке и каждые 30 секунд
+        updateServiceStatus();
+        setInterval(updateServiceStatus, 30000);
+    </script>
+</body>
+</html>

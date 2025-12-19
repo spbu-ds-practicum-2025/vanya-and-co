@@ -1,0 +1,14 @@
+syntax = "proto3";
+package auth;
+
+service Auth {
+  rpc WhoAmI (WhoAmIRequest) returns (WhoAmIResponse) {}
+}
+
+message WhoAmIRequest {
+  string token = 1;
+}
+
+message WhoAmIResponse {
+  string username = 1;
+}

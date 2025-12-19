@@ -2,18 +2,20 @@ package auth
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 func setup(t *testing.T) string {
 	cwd, _ := os.Getwd()
-	p := filepath.Join(cwd, "data", "users_test.json")
+	p := filepath.Join(cwd, "data", "auth_test.db")
 	_ = os.Remove(p)
 	_ = os.MkdirAll(filepath.Dir(p), 0o755)
 	return p
@@ -42,10 +44,16 @@ func TestRegisterAndLogin_JSON(t *testing.T) {
 		t.Fatalf("expected 200 got %d", w.Result().StatusCode)
 	}
 
-	data, _ := ioutil.ReadFile(p)
-	if len(data) == 0 {
-		t.Fatalf("users file empty")
+	// Check DB has user
+	db, err := sql.Open("sqlite", p)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
 	}
+	var u string
+	if err := db.QueryRow(`SELECT username FROM users WHERE username = ?`, "u1").Scan(&u); err != nil || u != "u1" {
+		t.Fatalf("user not found in db: %v", err)
+	}
+	db.Close()
 }
 
 func TestRegisterAndLogin_Form(t *testing.T) {

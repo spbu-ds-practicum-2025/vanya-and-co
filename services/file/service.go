@@ -2,6 +2,7 @@ package file
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -9,22 +10,36 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 type FileService struct {
 	BasePath  string
 	MaxSizeMB int
 	Cluster   *ReplicaCluster
+	db        *sql.DB
 }
 
 func New(base string, maxSizeMB int) *FileService {
 	_ = os.MkdirAll(base, os.ModePerm)
-	cluster := NewCluster(base, 3) 
+	cluster := NewCluster(base, 3)
+	dbPath := filepath.Join(base, "file.db")
+	db, _ := sql.Open("sqlite", dbPath)
+	// ignore error here; embedded services/tests will ensure path
+	_ = os.MkdirAll(filepath.Dir(dbPath), os.ModePerm)
+	if db != nil {
+		_ = db.Ping()
+		// create table if needed
+		_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT, name TEXT, path TEXT, created INTEGER);`)
+	}
 
 	return &FileService{
 		BasePath:  base,
 		MaxSizeMB: maxSizeMB,
 		Cluster:   cluster,
+		db:        db,
 	}
 }
 
@@ -72,6 +87,11 @@ func (s *FileService) Upload(w http.ResponseWriter, r *http.Request, username st
 	// 4. Пишем на основной диск
 	_ = os.WriteFile(dst, fileBytes, os.ModePerm)
 
+	// store metadata in DB
+	if s.db != nil {
+		_, _ = s.db.Exec(`INSERT INTO files (owner, name, path, created) VALUES (?, ?, ?, ?)`, username, filename, dst, time.Now().Unix())
+	}
+
 	// 5. Репликация
 	relPath := filepath.Join(filepath.Base(username), filename)
 	s.Cluster.Write(relPath, fileBytes)
@@ -82,9 +102,31 @@ func (s *FileService) Upload(w http.ResponseWriter, r *http.Request, username st
 
 // LIST - Список файлов (Условие 2 и 4)
 func (s *FileService) List(w http.ResponseWriter, r *http.Request, username string) {
-	// Изоляция: читаем только папку пользователя
-	userDir := filepath.Join(s.BasePath, filepath.Base(username))
-	files, _ := os.ReadDir(userDir)
+	// prefer DB-backed listing if available
+	var rows *sql.Rows
+	var err error
+	if s.db != nil {
+		rows, err = s.db.Query(`SELECT name FROM files WHERE owner = ? ORDER BY created DESC`, username)
+	}
+	var names []string
+	if err == nil && rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err == nil {
+				names = append(names, n)
+			}
+		}
+	} else {
+		userDir := filepath.Join(s.BasePath, filepath.Base(username))
+		dirents, _ := os.ReadDir(userDir)
+		for _, f := range dirents {
+			if f.IsDir() {
+				continue
+			}
+			names = append(names, f.Name())
+		}
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
@@ -121,15 +163,11 @@ func (s *FileService) List(w http.ResponseWriter, r *http.Request, username stri
 				<tr><th>Имя файла</th><th style="text-align:right">Действия</th></tr>
 	`, username)
 
-	if len(files) == 0 {
+	if len(names) == 0 {
 		fmt.Fprintf(w, "<tr><td colspan='2' style='text-align:center; color:#777;'>Папка пуста</td></tr>")
 	}
 
-	for _, f := range files {
-		if f.IsDir() {
-			continue 
-		}
-		name := f.Name()
+	for _, name := range names {
 		// Ссылки на действия
 		fmt.Fprintf(w, `
 			<tr>
@@ -191,13 +229,18 @@ func (s *FileService) Delete(w http.ResponseWriter, r *http.Request, username st
 
 	// Путь относительно корня хранилища: username/filename
 	relPath := filepath.Join(filepath.Base(username), filepath.Base(name))
-	
+
 	// Удаляем с основного диска
 	mainFile := filepath.Join(s.BasePath, relPath)
 	_ = os.Remove(mainFile)
 
 	// Удаляем с узлов
 	s.Cluster.Delete(relPath)
+
+	// delete metadata from DB
+	if s.db != nil {
+		_, _ = s.db.Exec(`DELETE FROM files WHERE owner = ? AND name = ?`, username, filepath.Base(name))
+	}
 
 	http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 }
