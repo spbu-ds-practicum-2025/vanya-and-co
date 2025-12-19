@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Service</title>
+    <style>
+        body { font-family: Arial; padding: 40px; }
+        .service-header { background: #2196F3; color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+    </style>
+</head>
+<body>
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="service-header">
+            <h2>📁 File Service (Standalone)</h2>
+            <p>Gateway is offline - direct access</p>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h3>Upload File</h3>
+            <form action="/api/v1/files/upload" method="post" enctype="multipart/form-data">
+                <input type="file" name="file" required>
+                <button type="submit">Upload</button>
+            </form>
+            
+            <h3>File List</h3>
+            <div id="fileList">Loading...</div>
+        </div>
+    </div>
+    
+    <script>
+        fetch('/api/v1/files')
+            .then(r => r.json())
+            .then(files => {
+                const container = document.getElementById('fileList');
+                container.innerHTML = files.map(f => 
+                    `<div>📄 ${f.name} - <a href="/api/v1/files/${f.id}">Download</a></div>`
+                ).join('');
+            });
+    </script>
+</body>
+</html>

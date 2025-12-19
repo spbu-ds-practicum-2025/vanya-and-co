@@ -1,12 +1,61 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>vanya-and-co</title></head><body>
-  <h1>vanya-and-co Gateway UI</h1>
-  <p>Use the links below to try the demo:</p>
-  <ul>
-    <li><a href="/static/register-form.html">Register</a></li>
-    <li><a href="/static/login-form.html">Login</a></li>
-    <li><a href="/files/list">Files (requires login)</a></li>
-    <li><a href="/static/share-form.html">Create share</a></li>
-    <li><a href="/static/my-shares.html">My shares</a></li>
-  </ul>
-</body></html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Облачное хранилище</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; text-align: center; background: #f4f4f4; }
+        .auth-container { max-width: 400px; margin: 100px auto; padding: 30px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 30px; }
+        .auth-buttons { display: flex; flex-direction: column; gap: 15px; }
+        .auth-btn { 
+            padding: 15px; 
+            background: #2196F3; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .auth-btn:hover { background: #1976D2; }
+        .auth-btn.register { background: #4CAF50; }
+        .auth-btn.register:hover { background: #388E3C; }
+        .error { color: #f44336; margin: 15px 0; padding: 10px; background: #ffebee; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Облачное хранилище</h1>
+        <div id="error-message" class="error" style="display: none;"></div>
+        <div class="auth-buttons">
+            <a href="/static/register-form.html" class="auth-btn register">Регистрация</a>
+            <a href="/static/login-form.html" class="auth-btn">Вход</a>
+        </div>
+    </div>
+
+    <script>
+        // Проверяем, авторизован ли пользователь
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? match[2] : null;
+        }
+
+        // Если пользователь уже авторизован, перенаправляем на главную страницу приложения
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = getCookie('session');
+            if (token) {
+                window.location.href = '/files/list';
+            }
+            
+            // Проверяем наличие ошибки в URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                document.getElementById('error-message').textContent = decodeURIComponent(error);
+                document.getElementById('error-message').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

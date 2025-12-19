@@ -1,4 +1,24 @@
-package gateway
+package main
 
-// Placeholder package; the gateway server runs from cmd/server/main.go
-// This file intentionally left minimal to avoid building an extra main in the package
+import (
+    "net/http"
+    "log"
+)
+
+func main() {
+    // Раздаем статические файлы
+    fs := http.FileServer(http.Dir("./static"))
+    http.Handle("/", fs)
+    
+    // Редирект с корня на index.html
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path == "/" {
+            http.ServeFile(w, r, "./static/index.html")
+            return
+        }
+        fs.ServeHTTP(w, r)
+    })
+    
+    log.Println("Gateway server starting on :8000")
+    log.Fatal(http.ListenAndServe(":8000", nil))
+}

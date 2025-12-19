@@ -72,14 +72,6 @@ func (s *AuthService) WhoAmI(ctx context.Context, req *authpb.WhoAmIRequest) (*a
 	return &authpb.WhoAmIResponse{Username: ""}, nil
 }
 
-func (s *AuthService) load() {
-	// legacy: users were stored in JSON file; DB is now canonical
-}
-
-func (s *AuthService) save() {
-	// legacy
-}
-
 func (s *AuthService) migrate() error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT);`,
@@ -156,8 +148,7 @@ func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
 	// Условие 3: Ошибка, если логин не найден или пароль неверен
 	if !exists || savedPwd != p {
 		if isForm {
-			msg := "пользователя с таким паролем или логином не существует, попробуйте еще раз"
-			// Редирект на форму с ошибкой и очисткой полей
+			msg := "Пользователя с указанным логином не существует, либо неверный пароль"
 			http.Redirect(w, r, "/static/login-form.html?error="+url.QueryEscape(msg), http.StatusSeeOther)
 			return
 		}
@@ -213,8 +204,7 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
 	// Условие 3: Ошибка, если пользователь уже существует
 	if exists {
 		if isForm {
-			msg := "пользователь с таким логином существует"
-			// Редирект на форму с ошибкой
+			msg := "Пользователь с указанным вами логином существует"
 			http.Redirect(w, r, "/static/register-form.html?error="+url.QueryEscape(msg), http.StatusSeeOther)
 			return
 		}
