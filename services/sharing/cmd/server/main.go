@@ -14,6 +14,9 @@ import (
 )
 
 func main() {
+	// Получаем порт из переменной окружения или используем значение по умолчанию
+	grpcPort := getEnv("GRPC_PORT", "5300")
+
 	cwd, _ := os.Getwd()
 	basePath := filepath.Join(cwd, "../file/data")
 
@@ -26,13 +29,21 @@ func main() {
 	grpcServer := grpc.NewServer()
 	sharingpb.RegisterSharingServiceServer(grpcServer, grpcService)
 
-	lis, err := net.Listen("tcp", ":50053")
+	lis, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
-	log.Println("🔗 Sharing gRPC service starting on :50053")
+	log.Printf("🔗 Sharing gRPC service starting on :%s", grpcPort)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
+}
+
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

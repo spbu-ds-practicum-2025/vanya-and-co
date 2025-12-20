@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	_"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -169,7 +169,7 @@ func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Добавляем метод Login в AuthService
-func (s *AuthService) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
+/*func (s *AuthService) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
 	if req == nil || req.Username == "" || req.Password == "" {
 		return nil, fmt.Errorf("invalid login request")
 	}
@@ -197,7 +197,7 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.LoginRequest) (*aut
 	}
 
 	return &authpb.LoginResponse{Token: token}, nil
-}
+}*/
 
 func generateToken() string {
 	b := make([]byte, 16)

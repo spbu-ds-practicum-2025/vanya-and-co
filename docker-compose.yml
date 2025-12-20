@@ -1,40 +1,71 @@
 version: '3.8'
+
 services:
   auth:
-    build:
+    build: 
       context: .
-      dockerfile: ./services/auth/Dockerfile
+      dockerfile: services/auth/Dockerfile
     ports:
-      - "8081:8081" # http
+      - "5100:5100" # HTTP
+      - "5101:5101" # gRPC
     environment:
-      - PORT=8081
+      - HTTP_PORT=5100
+      - GRPC_PORT=5101
+    volumes:
+      - ./services/auth/data:/app/services/auth/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   file:
     build:
       context: .
-      dockerfile: ./services/file/Dockerfile
+      dockerfile: services/file/Dockerfile
     ports:
-      - "8082:8082"
+      - "5200:5200"
     environment:
-      - PORT=8082
+      - GRPC_PORT=5200
+    volumes:
+      - ./services/file/storage:/app/storage
+      - ./services/file/data:/app/services/file/data
+    restart: unless-stopped
 
   sharing:
     build:
       context: .
-      dockerfile: ./services/sharing/Dockerfile
+      dockerfile: services/sharing/Dockerfile
     ports:
-      - "8083:8083"
+      - "5300:5300"
     environment:
-      - PORT=8083
+      - GRPC_PORT=5300
+    volumes:
+      - ./services/sharing/data:/app/services/sharing/data
+    restart: unless-stopped
+    depends_on:
+      - file
 
   gateway:
     build:
       context: .
-      dockerfile: ./services/gateway/Dockerfile
+      dockerfile: services/gateway/Dockerfile
     ports:
       - "8080:8080"
     environment:
-      - AUTH_ADDR=http://auth:8081
-      - AUTH_GRPC_ADDR=auth:8081
-      - FILE_ADDR=http://file:8082
-      - SHARE_ADDR=http://sharing:8083
+      - PORT=8080
+      - AUTH_GRPC_ADDR=auth:5101
+      - FILE_ADDR=file:5200
+      - SHARE_ADDR=sharing:5300
+    restart: unless-stopped
+    depends_on:
+      - auth
+      - file
+      - sharing
+
+volumes:
+  auth_data:
+  file_storage:
+  file_data:
+  sharing_data:

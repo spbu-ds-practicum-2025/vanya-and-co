@@ -1,137 +1,336 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Dashboard - Vanya-and-co</title>
+    <meta charset="utf-8">
+    <title>Панель управления - Облачное хранилище</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        
         header {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 40px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .service-status {
-            background-color: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        
+        header h1 {
+            font-size: 24px;
+            font-weight: 600;
         }
+        
+        .logout {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 2px solid white;
+            transition: all 0.3s;
+        }
+        
+        .logout:hover {
+            background-color: white;
+            color: #667eea;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .service-status {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .service-status h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+        
         .status-item {
             display: flex;
             align-items: center;
-            margin: 5px 0;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: all 0.3s;
         }
+        
+        .status-item:hover {
+            background: #e9ecef;
+        }
+        
         .status-dot {
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            margin-right: 10px;
+            margin-right: 12px;
+            animation: pulse 2s infinite;
         }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
         .status-up { background-color: #4CAF50; }
         .status-down { background-color: #f44336; }
+        
         .card-container {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
         }
+        
         .card {
-            background-color: white;
-            padding: 25px;
-            border-radius: 10px;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
             text-decoration: none;
             color: #333;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            border: 2px solid transparent;
         }
+        
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: #667eea;
         }
+        
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
         .card h3 {
-            margin-top: 0;
-            color: #007bff;
+            margin: 15px 0 10px 0;
+            color: #667eea;
+            font-size: 20px;
         }
+        
         .card p {
             color: #666;
             font-size: 14px;
+            line-height: 1.6;
         }
-        .logout {
-            color: #dc3545;
-            text-decoration: none;
-            font-weight: bold;
-            padding: 8px 16px;
-            border-radius: 5px;
-            border: 1px solid #dc3545;
+        
+        .files-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-top: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         }
-        .logout:hover {
-            background-color: #dc3545;
+        
+        .files-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            background: #f8f9ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area input[type="file"] {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 15px;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .file-list {
+            list-style: none;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        
+        .file-item:hover {
+            background: #e9ecef;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .file-icon {
+            font-size: 24px;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .btn-download {
+            background: #4CAF50;
+        }
+        
+        .btn-download:hover {
+            background: #388E3C;
+        }
+        
+        .btn-share {
+            background: #2196F3;
+        }
+        
+        .btn-share:hover {
+            background: #1976D2;
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>📊 Dashboard</h1>
-        <a href="index.html" class="logout">Logout</a>
+        <h1>☁️ Панель управления</h1>
+        <a href="/auth/logout" class="logout">Выход</a>
     </header>
 
-    <div class="service-status" id="serviceStatus">
-        <h3>Service Status</h3>
-        <div id="statusList">Checking services...</div>
-    </div>
-    
-    <div class="card-container">
-        <!-- File Management -->
-        <a href="upload-form.html" class="card">
-            <h3>📤 Upload File</h3>
-            <p>Upload new files to the system</p>
-        </a>
+    <div class="container">
+        <div class="service-status">
+            <h3>Статус сервисов</h3>
+            <div id="statusList">Проверка сервисов...</div>
+        </div>
         
-        <a href="download-form.html" class="card">
-            <h3>📥 Download File</h3>
-            <p>Download existing files</p>
-        </a>
+        <div class="card-container">
+            <div class="card" style="cursor: default;">
+                <div class="card-icon">📤</div>
+                <h3>Загрузка файлов</h3>
+                <p>Загружайте файлы в облачное хранилище</p>
+            </div>
+            
+            <div class="card" style="cursor: default;">
+                <div class="card-icon">📥</div>
+                <h3>Скачивание</h3>
+                <p>Скачивайте сохраненные файлы</p>
+            </div>
+            
+            <div class="card" style="cursor: default;">
+                <div class="card-icon">🔗</div>
+                <h3>Общий доступ</h3>
+                <p>Создавайте ссылки для обмена файлами</p>
+            </div>
+            
+            <div class="card" style="cursor: default;">
+                <div class="card-icon">📋</div>
+                <h3>Мои ссылки</h3>
+                <p>Управляйте созданными ссылками</p>
+            </div>
+        </div>
         
-        <!-- Sharing -->
-        <a href="share-form.html" class="card">
-            <h3>🔗 Create Share</h3>
-            <p>Create a shareable link for files</p>
-        </a>
-        
-        <a href="my-shares.html" class="card">
-            <h3>📋 My Shares</h3>
-            <p>View and manage your shared files</p>
-        </a>
+        <div class="files-section">
+            <h3>📁 Управление файлами</h3>
+            
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <div style="font-size: 48px; margin-bottom: 15px;">📤</div>
+                <p style="font-size: 16px; color: #666; margin-bottom: 10px;">
+                    Нажмите для выбора файла или перетащите его сюда
+                </p>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" id="fileInput" name="file" onchange="handleFileSelect(event)">
+                </form>
+                <button class="upload-btn" onclick="uploadFile()" id="uploadButton" style="display: none;">
+                    Загрузить файл
+                </button>
+            </div>
+            
+            <h4 style="margin-bottom: 15px; color: #333;">Ваши файлы:</h4>
+            <ul class="file-list" id="fileList">
+                <li style="text-align: center; padding: 20px; color: #999;">
+                    Загрузка списка файлов...
+                </li>
+            </ul>
+        </div>
     </div>
 
     <script>
+        let selectedFile = null;
+
+        // Проверка сервисов
         const services = [
-            { name: "Auth", port: 8001, path: "/health", standalone: "/standalone" },
-            { name: "File", port: 8002, path: "/health", standalone: "/standalone" },
-            { name: "Sharing", port: 8003, path: "/health", standalone: "/standalone" }
+            { name: "Auth Service", port: 5100, path: "/health" },
+            { name: "File Service", port: 5200, path: "/health" },
+            { name: "Sharing Service", port: 5300, path: "/health" }
         ];
 
         async function checkService(service) {
             try {
                 const response = await fetch(`http://localhost:${service.port}${service.path}`, {
                     method: 'GET',
-                    mode: 'no-cors', // Используем no-cors чтобы избежать CORS ошибок
+                    mode: 'no-cors',
                     cache: 'no-cache'
                 });
-                return true; // Если fetch не выбросил ошибку, сервис доступен
+                return true;
             } catch (error) {
-                console.log(`${service.name} service error:`, error);
                 return false;
             }
         }
@@ -144,14 +343,7 @@
                 statusHTML += `
                     <div class="status-item">
                         <div class="status-dot ${isUp ? 'status-up' : 'status-down'}"></div>
-                        <span>${service.name} (port ${service.port})</span>
-                        ${!isUp ? 
-                            `<a href="http://localhost:${service.port}${service.standalone}" target="_blank" 
-                              style="margin-left: auto; font-size: 12px; color: #666;">
-                              [standalone access]
-                            </a>` : 
-                            ''
-                        }
+                        <span><strong>${service.name}</strong> - порт ${service.port}</span>
                     </div>
                 `;
             }
@@ -159,8 +351,120 @@
             document.getElementById('statusList').innerHTML = statusHTML;
         }
 
-        // Проверяем статус при загрузке и каждые 30 секунд
+        // Загрузка списка файлов
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files/list');
+                if (response.ok) {
+                    const files = await response.json();
+                    displayFiles(files);
+                } else {
+                    document.getElementById('fileList').innerHTML = 
+                        '<li style="text-align: center; padding: 20px; color: #f44336;">Ошибка загрузки файлов</li>';
+                }
+            } catch (error) {
+                console.error('Error loading files:', error);
+                document.getElementById('fileList').innerHTML = 
+                    '<li style="text-align: center; padding: 20px; color: #f44336;">Сервис файлов недоступен</li>';
+            }
+        }
+
+        function displayFiles(files) {
+            const fileList = document.getElementById('fileList');
+            
+            if (!files || files.length === 0) {
+                fileList.innerHTML = '<li style="text-align: center; padding: 20px; color: #999;">Файлы не найдены</li>';
+                return;
+            }
+            
+            fileList.innerHTML = files.map(file => `
+                <li class="file-item">
+                    <div class="file-info">
+                        <span class="file-icon">📄</span>
+                        <div>
+                            <div style="font-weight: 600;">${file.filename || file.id}</div>
+                            <div style="font-size: 12px; color: #999;">
+                                ${formatFileSize(file.size)} • ${formatDate(file.uploaded_at)}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn-small btn-download" onclick="downloadFile('${file.id}')">
+                            📥 Скачать
+                        </button>
+                        <button class="btn-small btn-share" onclick="shareFile('${file.id}')">
+                            🔗 Поделиться
+                        </button>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatDate(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleDateString('ru-RU') + ' ' + date.toLocaleTimeString('ru-RU');
+        }
+
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                document.getElementById('uploadButton').style.display = 'inline-block';
+                document.querySelector('.upload-area p').textContent = 
+                    `Выбран файл: ${selectedFile.name}`;
+            }
+        }
+
+        async function uploadFile() {
+            if (!selectedFile) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/files/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('Файл успешно загружен!');
+                    selectedFile = null;
+                    document.getElementById('fileInput').value = '';
+                    document.getElementById('uploadButton').style.display = 'none';
+                    document.querySelector('.upload-area p').textContent = 
+                        'Нажмите для выбора файла или перетащите его сюда';
+                    loadFiles();
+                } else {
+                    alert('Ошибка при загрузке файла');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Ошибка при загрузке файла');
+            }
+        }
+
+        function downloadFile(fileId) {
+            window.location.href = `/files/download/${fileId}`;
+        }
+
+        function shareFile(fileId) {
+            alert('Функция создания ссылки для обмена будет доступна в следующей версии');
+        }
+
+        // Инициализация
         updateServiceStatus();
+        loadFiles();
         setInterval(updateServiceStatus, 30000);
     </script>
 </body>

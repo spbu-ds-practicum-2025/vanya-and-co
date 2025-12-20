@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	authpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb"
@@ -22,26 +24,77 @@ type Gateway struct {
 }
 
 func NewGateway() (*Gateway, error) {
-	authConn, err := grpc.Dial("localhost:8081", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Используем адреса из переменных окружения или localhost для разработки
+	authAddr := getEnv("AUTH_GRPC_ADDR", "localhost:5101")
+	fileAddr := getEnv("FILE_ADDR", "localhost:5200")
+	sharingAddr := getEnv("SHARE_ADDR", "localhost:5300")
+
+	log.Printf("Connecting to Auth service at: %s", authAddr)
+	log.Printf("Connecting to File service at: %s", fileAddr)
+	log.Printf("Connecting to Sharing service at: %s", sharingAddr)
+
+	// Подключаемся к сервисам с retry логикой
+	authConn, err := dialWithRetry(authAddr, 5)
 	if err != nil {
-		return nil, err
+		log.Printf("Warning: Failed to connect to Auth service: %v", err)
+		// Продолжаем работу даже если Auth недоступен
 	}
 
-	fileConn, err := grpc.Dial("localhost:8082", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	fileConn, err := dialWithRetry(fileAddr, 5)
 	if err != nil {
-		return nil, err
+		log.Printf("Warning: Failed to connect to File service: %v", err)
 	}
 
-	sharingConn, err := grpc.Dial("localhost:8083", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	sharingConn, err := dialWithRetry(sharingAddr, 5)
 	if err != nil {
-		return nil, err
+		log.Printf("Warning: Failed to connect to Sharing service: %v", err)
+	}
+
+	var authClient authpb.AuthClient
+	var fileClient filepb.FileServiceClient
+	var sharingClient sharingpb.SharingServiceClient
+
+	if authConn != nil {
+		authClient = authpb.NewAuthClient(authConn)
+	}
+	if fileConn != nil {
+		fileClient = filepb.NewFileServiceClient(fileConn)
+	}
+	if sharingConn != nil {
+		sharingClient = sharingpb.NewSharingServiceClient(sharingConn)
 	}
 
 	return &Gateway{
-		authClient:    authpb.NewAuthClient(authConn),
-		fileClient:    filepb.NewFileServiceClient(fileConn),
-		sharingClient: sharingpb.NewSharingServiceClient(sharingConn),
+		authClient:    authClient,
+		fileClient:    fileClient,
+		sharingClient: sharingClient,
 	}, nil
+}
+
+func dialWithRetry(addr string, maxRetries int) (*grpc.ClientConn, error) {
+	var conn *grpc.ClientConn
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		conn, err = grpc.Dial(addr, 
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+			grpc.WithTimeout(2*time.Second))
+		if err == nil {
+			return conn, nil
+		}
+		log.Printf("Attempt %d/%d: Failed to connect to %s: %v", i+1, maxRetries, addr, err)
+		time.Sleep(1 * time.Second)
+	}
+	return nil, err
+}
+
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }
 
 func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -49,7 +102,13 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		cookie, err := r.Cookie("session")
 		if err != nil {
 			log.Printf("No session cookie: %v", err)
-			http.Error(w, "unauthorized", 401)
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+
+		if g.authClient == nil {
+			log.Printf("Auth service unavailable")
+			http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
 			return
 		}
 
@@ -59,7 +118,7 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
 		if err != nil || resp.Username == "" {
 			log.Printf("WhoAmI failed: Error=%v, Username=%v", err, resp.Username)
-			http.Error(w, "unauthorized", 401)
+			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 
@@ -71,6 +130,11 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 func (g *Gateway) handleFileList(w http.ResponseWriter, r *http.Request) {
 	username := r.Context().Value("username").(string)
+
+	if g.fileClient == nil {
+		http.Error(w, "File service unavailable", http.StatusServiceUnavailable)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -88,6 +152,11 @@ func (g *Gateway) handleFileList(w http.ResponseWriter, r *http.Request) {
 func (g *Gateway) handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if g.fileClient == nil {
+		http.Error(w, "File service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -123,18 +192,71 @@ func (g *Gateway) handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("File uploaded successfully"))
 }
 
+func (g *Gateway) handleFilesPage(w http.ResponseWriter, r *http.Request) {
+	// Проверяем авторизацию
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	if g.authClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
+		if err != nil || resp.Username == "" {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+	}
+
+	// Отдаем страницу dashboard
+	http.ServeFile(w, r, filepath.Join("static", "dashboard.html"))
+}
+
 func main() {
 	gateway, err := NewGateway()
 	if err != nil {
-		log.Fatalf("Failed to create gateway: %v", err)
+		log.Printf("Warning: Failed to create gateway with all services: %v", err)
 	}
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
+	// Определяем путь к статическим файлам
+	staticPath := "static"
+	if _, err := os.Stat("static"); os.IsNotExist(err) {
+		// Пробуем альтернативный путь
+		staticPath = "../../static"
+		if _, err := os.Stat(staticPath); os.IsNotExist(err) {
+			staticPath = "./services/gateway/cmd/server/static"
+		}
+	}
+	log.Printf("Serving static files from: %s", staticPath)
+
+	// Статические файлы
+	fs := http.FileServer(http.Dir(staticPath))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
+
+	// API endpoints
 	http.HandleFunc("/api/files/list", gateway.authMiddleware(gateway.handleFileList))
 	http.HandleFunc("/files/upload", gateway.authMiddleware(gateway.handleFileUpload))
+	http.HandleFunc("/files/list", gateway.handleFilesPage)
 
-	http.Handle("/", http.FileServer(http.Dir("../../static")))
+	// Главная страница
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(staticPath, "index.html"))
+	})
 
-	log.Println("Gateway starting on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Health check
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	port := getEnv("PORT", "8080")
+	log.Printf("🌐 Gateway starting on http://localhost:%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

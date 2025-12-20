@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 
 	"github.com/spbu-ds-practicum-2025/vanya-and-co/services/file"
 	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
@@ -10,6 +11,9 @@ import (
 )
 
 func main() {
+	// Получаем порт из переменной окружения или используем значение по умолчанию
+	grpcPort := getEnv("GRPC_PORT", "5200")
+
 	// Создаем сервис
 	fileService := file.NewFileService()
 	grpcService := file.NewGRPCService(fileService)
@@ -19,13 +23,21 @@ func main() {
 	filepb.RegisterFileServiceServer(server, grpcService)
 
 	// Запускаем сервер
-	lis, err := net.Listen("tcp", ":50052")
+	lis, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	log.Println("📁 File service starting on :50052")
+	log.Printf("📁 File service starting on :%s", grpcPort)
 	if err := server.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+}
+
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }
