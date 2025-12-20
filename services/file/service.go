@@ -3,6 +3,7 @@ package file
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,8 +19,12 @@ type FileService struct {
 
 // NewFileService создает новый экземпляр FileService
 func NewFileService() *FileService {
+	absolutePath, err := filepath.Abs("./storage")
+	if err != nil {
+		log.Fatalf("Failed to resolve storage path: %v", err)
+	}
 	return &FileService{
-		storagePath: "./storage",
+		storagePath: absolutePath,
 	}
 }
 
