@@ -1,100 +1,97 @@
-package main
+﻿package main
 
 import (
-    "net/http"
-    "log"
-    "os"
-    "path/filepath"
-    "strings"
+	"context"
+	"encoding/json"
+	"log"
+	"net/http"
+	"time"
+
+	authpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb"
+	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
+	sharingpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing/sharingpb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-// Функция проверки существования файла
-func fileExists(filename string) bool {
-    info, err := os.Stat(filename)
-    if os.IsNotExist(err) {
-        return false
-    }
-    return !info.IsDir()
+type Gateway struct {
+	authClient    authpb.AuthClient
+	fileClient    filepb.FileServiceClient
+	sharingClient sharingpb.SharingServiceClient
+}
+
+func NewGateway() (*Gateway, error) {
+	authConn, err := grpc.Dial("localhost:8081", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	fileConn, err := grpc.Dial("localhost:8082", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	sharingConn, err := grpc.Dial("localhost:8083", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Gateway{
+		authClient:    authpb.NewAuthClient(authConn),
+		fileClient:    filepb.NewFileServiceClient(fileConn),
+		sharingClient: sharingpb.NewSharingServiceClient(sharingConn),
+	}, nil
+}
+
+func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session")
+		if err != nil {
+			http.Error(w, "unauthorized", 401)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
+		if err != nil || resp.Username == "" {
+			http.Error(w, "unauthorized", 401)
+			return
+		}
+
+		ctx = context.WithValue(r.Context(), "username", resp.Username)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+}
+
+func (g *Gateway) handleFileList(w http.ResponseWriter, r *http.Request) {
+	username := r.Context().Value("username").(string)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := g.fileClient.List(ctx, &filepb.ListFilesRequest{Username: username})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp.Files)
 }
 
 func main() {
-    port := ":8000"
-    
-    // Маппинг URL -> файлов
-    routes := map[string]string{
-        "/":               "index.html",
-        "/login":          "login-form.html",
-        "/login-form":     "login-form.html",
-        "/login-form.html": "login-form.html",
-        "/register":       "register-form.html",
-        "/register-form":  "register-form.html",
-        "/dashboard":      "dashboard.html",
-        "/upload":         "upload-form.html",
-        "/download":       "download-form.html",
-        "/share":          "share-form.html",
-        "/my-shares":      "my-shares.html",
-    }
-    
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        urlPath := r.URL.Path
-        log.Printf("📄 Request: %s %s", r.Method, urlPath)
-        
-        // Пробуем найти в маппинге
-        if filename, exists := routes[urlPath]; exists {
-            filePath := filepath.Join("./static", filename)
-            if fileExists(filePath) {
-                log.Printf("   ✅ Serving: %s", filePath)
-                http.ServeFile(w, r, filePath)
-                return
-            } else {
-                log.Printf("   ❌ File not found: %s", filePath)
-            }
-        }
-        
-        // Если запрашивают файл напрямую с .html
-        if strings.HasSuffix(urlPath, ".html") {
-            filePath := filepath.Join("./static", urlPath)
-            if fileExists(filePath) {
-                log.Printf("   ✅ Serving direct: %s", filePath)
-                http.ServeFile(w, r, filePath)
-                return
-            }
-        }
-        
-        // Если это API запрос
-        if strings.HasPrefix(urlPath, "/api/") {
-            log.Printf("   🔌 API call: %s", urlPath)
-            w.WriteHeader(http.StatusOK)
-            w.Write([]byte("API endpoint"))
-            return
-        }
-        
-        // Пробуем найти файл в static
-        filePath := filepath.Join("./static", urlPath)
-        if fileExists(filePath) {
-            log.Printf("   ✅ Serving static: %s", filePath)
-            http.ServeFile(w, r, filePath)
-            return
-        }
-        
-        // Если ничего не найдено - 404
-        log.Printf("   ❓ Not found, serving index.html")
-        http.ServeFile(w, r, "./static/index.html")
-    })
+	gateway, err := NewGateway()
+	if err != nil {
+		log.Fatalf("Failed to create gateway: %v", err)
+	}
 
-    log.Println("Vanya-and-co Gateway Server")
-    log.Println("Server started on http://localhost" + port)
-    log.Println("Available pages:")
-    log.Println(" • Main page:      http://localhost" + port + "/")
-    log.Println(" • Login:          http://localhost" + port + "/login-form")
-    log.Println(" • Register:       http://localhost" + port + "/register-form")
-    log.Println(" • Dashboard:      http://localhost" + port + "/dashboard")
-    log.Println(" • Upload:         http://localhost" + port + "/upload-form")
-    log.Println(" • Download:       http://localhost" + port + "/download-form")
-    log.Println(" • Share:          http://localhost" + port + "/share-form")
-    log.Println(" • My Shares:      http://localhost" + port + "/my-shares")
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
+	http.HandleFunc("/api/files/list", gateway.authMiddleware(gateway.handleFileList))
 
-    if err := http.ListenAndServe(port, nil); err != nil {
-        log.Fatal("Server error: ", err)
-    }
+	http.Handle("/", http.FileServer(http.Dir("../../static")))
+
+	log.Println("Gateway starting on http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

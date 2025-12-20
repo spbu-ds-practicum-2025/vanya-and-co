@@ -1,42 +1,31 @@
-// services/file/cmd/server/main.go
 package main
 
 import (
-    "encoding/json"
-    "net/http"
-    "log"
-    "time"
+	"log"
+	"net"
+
+	"github.com/spbu-ds-practicum-2025/vanya-and-co/services/file"
+	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
+	"google.golang.org/grpc"
 )
 
-// Health check
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]string{
-        "status": "healthy",
-        "service": "file",
-        "timestamp": time.Now().Format(time.RFC3339),
-    })
-}
-
 func main() {
-    // Standalone HTML
-    http.HandleFunc("/standalone", func(w http.ResponseWriter, r *http.Request) {
-        http.ServeFile(w, r, "./static/standalone.html")
-    })
-    
-    // API endpoints (заглушки)
-    http.HandleFunc("/api/v1/files", func(w http.ResponseWriter, r *http.Request) {
-        files := []map[string]string{
-            {"id": "1", "name": "document.pdf", "size": "2.3MB"},
-            {"id": "2", "name": "image.png", "size": "1.1MB"},
-        }
-        w.Header().Set("Content-Type", "application/json")
-        json.NewEncoder(w).Encode(files)
-    })
-    
-    // Health check
-    http.HandleFunc("/health", healthHandler)
-    
-    log.Println("📁 File service starting on :8002")
-    log.Fatal(http.ListenAndServe(":8002", nil))
+	// Создаем сервис
+	fileService := file.NewFileService()
+	grpcService := file.NewGRPCService(fileService)
+
+	// Создаем gRPC сервер
+	server := grpc.NewServer()
+	filepb.RegisterFileServiceServer(server, grpcService)
+
+	// Запускаем сервер
+	lis, err := net.Listen("tcp", ":50052")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	log.Println("📁 File service starting on :50052")
+	if err := server.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }

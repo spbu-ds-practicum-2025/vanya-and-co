@@ -2,44 +2,37 @@ package main
 
 import (
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
 
 	filepkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file"
-	sharepkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing"
+	sharingpkg "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing"
+	sharingpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing/sharingpb"
+	"google.golang.org/grpc"
 )
 
 func main() {
 	cwd, _ := os.Getwd()
-	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(cwd)))
-	base := filepath.Join(projectRoot, "services", "file", "data")
+	basePath := filepath.Join(cwd, "../file/data")
 
-	cluster := filepkg.NewCluster(base, 3)
-	svc := sharepkg.New(cluster, 7*24*time.Hour)
+	cluster := filepkg.NewCluster(basePath, 3)
+	sharingService := sharingpkg.New(cluster, 7*24*time.Hour)
 
-	http.HandleFunc("/share/create", svc.Create)
-	http.HandleFunc("/share/", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		switch {
-		case r.Method == "GET" && (len(path) > 7 && path[len(path)-9:] == "/download"):
-			svc.Download(w, r)
-		case r.Method == "GET" && (path == "/share/" || path == "/share/list"):
-			svc.List(w, r)
-		case r.Method == "GET":
-			svc.Get(w, r)
-		case r.Method == "DELETE":
-			svc.Revoke(w, r)
-		default:
-			http.Error(w, "not found", http.StatusNotFound)
-		}
-	})
+	// Используйте обертку для gRPC
+	grpcService := sharingpkg.NewGRPCService(sharingService)
 
-	addr := ":5300"
-	if p := os.Getenv("PORT"); p != "" {
-		addr = ":" + p
+	grpcServer := grpc.NewServer()
+	sharingpb.RegisterSharingServiceServer(grpcServer, grpcService)
+
+	lis, err := net.Listen("tcp", ":50053")
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
 	}
-	log.Printf("sharing service listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+
+	log.Println("🔗 Sharing gRPC service starting on :50053")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("Failed to serve: %v", err)
+	}
 }
