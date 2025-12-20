@@ -48,6 +48,7 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("session")
 		if err != nil {
+			log.Printf("No session cookie: %v", err)
 			http.Error(w, "unauthorized", 401)
 			return
 		}
@@ -57,10 +58,12 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
 		if err != nil || resp.Username == "" {
+			log.Printf("WhoAmI failed: Error=%v, Username=%v", err, resp.Username)
 			http.Error(w, "unauthorized", 401)
 			return
 		}
 
+		log.Printf("Authenticated user: %s", resp.Username)
 		ctx = context.WithValue(r.Context(), "username", resp.Username)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -116,7 +117,7 @@ func (s *AuthService) setSession(w http.ResponseWriter, username string) {
 }
 
 // Login - Вход
-func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var u, p string
 	isForm := r.Header.Get("Content-Type") == "application/x-www-form-urlencoded"
 	if isForm {
@@ -165,6 +166,43 @@ func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte("OK"))
+}
+
+// Добавляем метод Login в AuthService
+func (s *AuthService) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
+	if req == nil || req.Username == "" || req.Password == "" {
+		return nil, fmt.Errorf("invalid login request")
+	}
+
+	// Проверяем пользователя в базе данных
+	var storedPassword string
+	err := s.db.QueryRow("SELECT password FROM users WHERE username = ?", req.Username).Scan(&storedPassword)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("database error: %v", err)
+	}
+
+	if storedPassword != req.Password {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Генерируем токен
+	token := generateToken()
+	expires := time.Now().Add(24 * time.Hour).Unix()
+	_, err = s.db.Exec("INSERT INTO sessions (token, username, expires) VALUES (?, ?, ?)", token, req.Username, expires)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %v", err)
+	}
+
+	return &authpb.LoginResponse{Token: token}, nil
+}
+
+func generateToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Register - Регистрация
