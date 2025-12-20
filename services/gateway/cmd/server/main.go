@@ -3,6 +3,7 @@
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -81,6 +82,44 @@ func (g *Gateway) handleFileList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp.Files)
 }
 
+func (g *Gateway) handleFileUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.ParseMultipartForm(10 << 20) // 10 MB limit
+	file, handler, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Failed to read file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	username := r.Context().Value("username").(string)
+	content, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file content", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := g.fileClient.Upload(ctx, &filepb.UploadRequest{
+		Username: username,
+		Filename: handler.Filename,
+		Content:  content,
+	})
+	if err != nil || !resp.Success {
+		http.Error(w, "Failed to upload file", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("File uploaded successfully"))
+}
+
 func main() {
 	gateway, err := NewGateway()
 	if err != nil {
@@ -89,6 +128,7 @@ func main() {
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
 	http.HandleFunc("/api/files/list", gateway.authMiddleware(gateway.handleFileList))
+	http.HandleFunc("/files/upload", gateway.authMiddleware(gateway.handleFileUpload))
 
 	http.Handle("/", http.FileServer(http.Dir("../../static")))
 
