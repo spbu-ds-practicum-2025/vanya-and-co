@@ -3,6 +3,7 @@ package authpb
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
