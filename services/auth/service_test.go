@@ -35,11 +35,11 @@ func TestRegisterAndLogin_JSON(t *testing.T) {
 		t.Fatalf("expected 201 or 303 got %d", w.Result().StatusCode)
 	}
 
-	// login
+	// login - ИСПРАВЛЕНО: используем LoginHandler вместо Login
 	req = httptest.NewRequest("POST", "/auth/login", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
-	s.Login(w, req)
+	s.LoginHandler(w, req)
 	if w.Result().StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 got %d", w.Result().StatusCode)
 	}
@@ -69,10 +69,11 @@ func TestRegisterAndLogin_Form(t *testing.T) {
 		t.Fatalf("expected 303 got %d", w.Result().StatusCode)
 	}
 
+	// ИСПРАВЛЕНО: используем LoginHandler вместо Login
 	req = httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w = httptest.NewRecorder()
-	s.Login(w, req)
+	s.LoginHandler(w, req)
 	if w.Result().StatusCode != http.StatusSeeOther {
 		t.Fatalf("expected 303 got %d", w.Result().StatusCode)
 	}
@@ -88,10 +89,11 @@ func TestLogoutClearsSession(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.Register(w, req)
 
+	// ИСПРАВЛЕНО: используем LoginHandler вместо Login
 	req = httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w = httptest.NewRecorder()
-	s.Login(w, req)
+	s.LoginHandler(w, req)
 	if w.Result().StatusCode != http.StatusSeeOther && w.Result().StatusCode != http.StatusOK {
 		t.Fatalf("expected login redirect/ok got %d", w.Result().StatusCode)
 	}

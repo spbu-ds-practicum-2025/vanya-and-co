@@ -1,6 +1,11 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
-WORKDIR /app
+WORKDIR /build
+
+# Используем прокси для ускорения загрузки
+ENV GOPROXY=https://goproxy.io,direct
+ENV GO111MODULE=on
+ENV CGO_ENABLED=0
 
 # Копируем файлы зависимостей
 COPY go.mod go.sum ./
@@ -9,23 +14,22 @@ RUN go mod download
 # Копируем весь проект
 COPY . .
 
-# Копируем статические файлы
-RUN mkdir -p /app/static
-COPY services/gateway/cmd/server/static/ /app/static/
+# Собираем бинарник из корня проекта
+RUN cd services/gateway/cmd/server && \
+    go build -o /build/gateway-server -ldflags="-s -w" .
 
-# Собираем бинарник
-WORKDIR /app/services/gateway/cmd/server
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/gateway-server .
-
+# Финальный образ
 FROM alpine:3.18
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates wget
 
 WORKDIR /app
 
-# Копируем бинарник и статические файлы
-COPY --from=builder /app/gateway-server /app/gateway-server
-COPY --from=builder /app/static /app/static
+# Копируем бинарник
+COPY --from=builder /build/gateway-server /app/gateway-server
+
+# Копируем статические файлы
+COPY services/gateway/cmd/server/static /app/static
 
 EXPOSE 8080
 

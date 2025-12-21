@@ -27,12 +27,12 @@ func TestAuth_WhoAmI_GRPC(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.Register(w, req)
 
-	// login
+	// login - ИСПРАВЛЕНО: используем LoginHandler вместо Login
 	req = httptest.NewRequest("POST", "/auth/login", nil)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.PostForm = map[string][]string{"username": {"g1"}, "password": {"p"}}
 	w = httptest.NewRecorder()
-	s.Login(w, req)
+	s.LoginHandler(w, req)
 	cookie := w.Result().Header.Get("Set-Cookie")
 	if cookie == "" {
 		t.Fatalf("expected Set-Cookie")

@@ -1,6 +1,11 @@
-FROM golang:1.24 AS builder
+FROM golang:1.22-alpine AS builder
 
-WORKDIR /app
+WORKDIR /build
+
+# Используем прокси для ускорения загрузки
+ENV GOPROXY=https://goproxy.io,direct
+ENV GO111MODULE=on
+ENV CGO_ENABLED=0
 
 # Копируем go.mod и go.sum
 COPY go.mod go.sum ./
@@ -9,10 +14,11 @@ RUN go mod download
 # Копируем весь проект
 COPY . .
 
-# Собираем бинарник
-WORKDIR /app/services/file/cmd/server
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/file-server .
+# Собираем бинарник из корня проекта
+RUN cd services/file/cmd/server && \
+    go build -o /build/file-server -ldflags="-s -w" .
 
+# Финальный образ
 FROM alpine:3.18
 
 RUN apk add --no-cache ca-certificates
@@ -20,7 +26,7 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
 # Копируем бинарник
-COPY --from=builder /app/file-server /app/file-server
+COPY --from=builder /build/file-server /app/file-server
 
 # Создаем директории для данных
 RUN mkdir -p /app/storage /app/services/file/data
