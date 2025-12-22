@@ -8,6 +8,7 @@ service FileService {
     rpc List(ListFilesRequest) returns (ListFilesResponse);
     rpc Upload(UploadRequest) returns (UploadResponse);
     rpc Download(DownloadRequest) returns (DownloadResponse);
+    rpc Delete(DeleteRequest) returns (DeleteResponse);
 }
 
 message ListFilesRequest {
@@ -47,4 +48,14 @@ message DownloadResponse {
     string filename = 2;
     bytes content = 3;
     string message = 4;
+}
+
+message DeleteRequest {
+    string file_id = 1;
+    string username = 2;
+}
+
+message DeleteResponse {
+    bool success = 1;
+    string message = 2;
 }

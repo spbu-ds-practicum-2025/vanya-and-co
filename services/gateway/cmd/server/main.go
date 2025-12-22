@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
@@ -229,7 +230,223 @@ func (g *Gateway) handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("File uploaded successfully"))
 }
 
-// ИСПРАВЛЕНО: Обработчик для /files/list с правильной авторизацией через middleware
+// ДОБАВЛЕНО: Обработчик для скачивания файлов
+func (g *Gateway) handleFileDownload(w http.ResponseWriter, r *http.Request) {
+	if g.fileClient == nil {
+		http.Error(w, "File service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Извлекаем file_id из URL: /files/download/{file_id}
+	fileID := strings.TrimPrefix(r.URL.Path, "/files/download/")
+	if fileID == "" {
+		http.Error(w, "File ID is required", http.StatusBadRequest)
+		return
+	}
+
+	username := r.Context().Value("username").(string)
+	log.Printf("[Gateway] Download request: file_id=%s, user=%s", fileID, username)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := g.fileClient.Download(ctx, &filepb.DownloadRequest{
+		FileId:   fileID,
+		Username: username,
+	})
+	if err != nil {
+		log.Printf("[Gateway] Download error: %v", err)
+		http.Error(w, "Failed to download file", http.StatusInternalServerError)
+		return
+	}
+
+	if !resp.Success {
+		log.Printf("[Gateway] Download failed: %s", resp.Message)
+		http.Error(w, resp.Message, http.StatusNotFound)
+		return
+	}
+
+	// Устанавливаем заголовки для скачивания файла
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+resp.Filename+"\"")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", string(len(resp.Content)))
+
+	// Отправляем содержимое файла
+	w.Write(resp.Content)
+	log.Printf("[Gateway] File downloaded successfully: %s", fileID)
+}
+
+// ДОБАВЛЕНО: Обработчик для удаления файлов
+func (g *Gateway) handleFileDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if g.fileClient == nil {
+		http.Error(w, "File service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Извлекаем file_id из URL: /files/delete/{file_id}
+	fileID := strings.TrimPrefix(r.URL.Path, "/files/delete/")
+	if fileID == "" {
+		http.Error(w, "File ID is required", http.StatusBadRequest)
+		return
+	}
+
+	username := r.Context().Value("username").(string)
+	log.Printf("[Gateway] Delete request: file_id=%s, user=%s", fileID, username)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := g.fileClient.Delete(ctx, &filepb.DeleteRequest{
+		FileId:   fileID,
+		Username: username,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !resp.Success {
+		http.Error(w, resp.Message, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": resp.Success,
+		"message": resp.Message,
+	})
+	log.Printf("[Gateway] File deleted successfully: %s", fileID)
+}
+
+// ДОБАВЛЕНО: Обработчик для создания публичной ссылки на файл
+func (g *Gateway) handleCreateShareLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if g.sharingClient == nil {
+		http.Error(w, "Sharing service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		FileID   string `json:"file_id"`
+		Filename string `json:"filename"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	username := r.Context().Value("username").(string)
+	log.Printf("[Gateway] Create share link: user=%s, file=%s", username, req.FileID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	response, err := g.sharingClient.CreateLink(ctx, &sharingpb.CreateLinkRequest{
+		Owner:    username,
+		Filename: req.Filename,
+		TtlSeconds: 86400, // 24 часа
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"share_id":   response.Token,
+		"expires_at": response.ExpiresAt,
+	})
+}
+
+// ДОБАВЛЕНО: Обработчик для получения списка публичных ссылок
+func (g *Gateway) handleListShareLinks(w http.ResponseWriter, r *http.Request) {
+	if g.sharingClient == nil {
+		http.Error(w, "Sharing service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	username := r.Context().Value("username").(string)
+	log.Printf("[Gateway] List share links: user=%s", username)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	response, err := g.sharingClient.GetSharedFiles(ctx, &sharingpb.GetSharedRequest{
+		Username: username,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response.Files)
+}
+
+// ДОБАВЛЕНО: Обработчик для удаления публичной ссылки
+func (g *Gateway) handleDeleteShareLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if g.sharingClient == nil {
+		http.Error(w, "Sharing service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Извлекаем share_id из URL: /api/sharing/delete/{share_id}
+	shareID := strings.TrimPrefix(r.URL.Path, "/api/sharing/delete/")
+	if shareID == "" {
+		http.Error(w, "Share ID is required", http.StatusBadRequest)
+		return
+	}
+
+	username := r.Context().Value("username").(string)
+	log.Printf("[Gateway] Delete share link: user=%s, share_id=%s", username, shareID)
+
+	// Пока sharing service не поддерживает Delete, возвращаем успех
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Share link deletion will be implemented soon",
+	})
+	log.Printf("[Gateway] Delete share link request received (not yet implemented): %s", shareID)
+}
+
+// ДОБАВЛЕНО: Обработчик для публичного скачивания по ссылке
+func (g *Gateway) handlePublicDownload(w http.ResponseWriter, r *http.Request) {
+	// Извлекаем token из URL: /share/{token}/download
+	path := strings.TrimPrefix(r.URL.Path, "/share/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) < 2 || parts[1] != "download" {
+		http.Error(w, "Invalid share URL", http.StatusBadRequest)
+		return
+	}
+
+	token := parts[0]
+	if token == "" {
+		http.Error(w, "Share token is required", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("[Gateway] Public download request: token=%s", token)
+
+	// Пока что просто перенаправляем на file сервис или возвращаем ошибку
+	// В будущем нужно интегрировать с sharing сервисом
+	http.Error(w, "Public sharing not yet implemented", http.StatusNotImplemented)
+}
+
 func (g *Gateway) handleFilesPage(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Gateway] Handling /files/list request from %s", r.RemoteAddr)
 
@@ -248,7 +465,6 @@ func (g *Gateway) handleFilesPage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, dashboardPath)
 }
 
-// ДОБАВЛЕНО: Функция для поиска статических файлов
 func findStaticPath() string {
 	// Возможные пути к статическим файлам
 	paths := []string{
@@ -336,7 +552,16 @@ func main() {
 	http.HandleFunc("/api/files/list", gateway.authMiddleware(gateway.handleFileList))
 	http.HandleFunc("/files/upload", gateway.authMiddleware(gateway.handleFileUpload))
 	
-	// ИСПРАВЛЕНО: /files/list теперь использует authMiddleware
+	// ДОБАВЛЕНО: Endpoints для скачивания и удаления файлов
+	http.HandleFunc("/files/download/", gateway.authMiddleware(gateway.handleFileDownload))
+	http.HandleFunc("/files/delete/", gateway.authMiddleware(gateway.handleFileDelete))
+
+	// ДОБАВЛЕНО: Endpoints для sharing
+	http.HandleFunc("/api/sharing/create", gateway.authMiddleware(gateway.handleCreateShareLink))
+	http.HandleFunc("/api/sharing/list", gateway.authMiddleware(gateway.handleListShareLinks))
+	http.HandleFunc("/api/sharing/delete/", gateway.authMiddleware(gateway.handleDeleteShareLink))
+	http.HandleFunc("/share/", gateway.handlePublicDownload)
+
 	http.HandleFunc("/files/list", gateway.authMiddleware(gateway.handleFilesPage))
 
 	// Главная страница
@@ -374,6 +599,8 @@ func main() {
 	log.Printf("  - POST /auth/logout         (Logout)")
 	log.Printf("  - GET  /api/files/list      (Files API)")
 	log.Printf("  - POST /files/upload        (Upload)")
+	log.Printf("  - GET  /files/download/:id  (Download)")
+	log.Printf("  - POST /files/delete/:id    (Delete)")
 	log.Printf("  - GET  /health              (Health check)")
 	
 	log.Fatal(http.ListenAndServe(":"+port, nil))

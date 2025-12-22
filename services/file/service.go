@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
@@ -19,7 +20,7 @@ type FileService struct {
 
 // NewFileService создает новый экземпляр FileService
 func NewFileService() *FileService {
-	absolutePath, err := filepath.Abs("./storage")
+	absolutePath, err := filepath.Abs("./data")
 	if err != nil {
 		log.Fatalf("Failed to resolve storage path: %v", err)
 	}
@@ -28,16 +29,17 @@ func NewFileService() *FileService {
 	}
 }
 
-// SaveFile сохраняет файл
-func (s *FileService) SaveFile(filename string, content []byte) (string, error) {
-	// Создаем директорию, если её нет
-	if err := os.MkdirAll(s.storagePath, 0755); err != nil {
-		return "", fmt.Errorf("failed to create storage directory: %v", err)
+// SaveFile сохраняет файл для указанного пользователя
+func (s *FileService) SaveFile(username, filename string, content []byte) (string, error) {
+	// Создаем директорию пользователя
+	userPath := filepath.Join(s.storagePath, username)
+	if err := os.MkdirAll(userPath, 0755); err != nil {
+		return "", fmt.Errorf("failed to create user directory: %v", err)
 	}
 
 	// Генерируем уникальный ID
 	fileID := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filename)
-	filePath := filepath.Join(s.storagePath, fileID)
+	filePath := filepath.Join(userPath, fileID)
 
 	// Сохраняем файл
 	if err := os.WriteFile(filePath, content, 0644); err != nil {
@@ -47,9 +49,10 @@ func (s *FileService) SaveFile(filename string, content []byte) (string, error) 
 	return fileID, nil
 }
 
-// GetFile возвращает файл по ID
-func (s *FileService) GetFile(fileID string) ([]byte, string, error) {
-	filePath := filepath.Join(s.storagePath, fileID)
+// GetFile возвращает файл по ID для указанного пользователя
+func (s *FileService) GetFile(username, fileID string) ([]byte, string, error) {
+	userPath := filepath.Join(s.storagePath, username)
+	filePath := filepath.Join(userPath, fileID)
 
 	// Проверяем существование файла
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -62,19 +65,47 @@ func (s *FileService) GetFile(fileID string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("failed to read file: %v", err)
 	}
 
-	return content, fileID, nil
+	// Извлекаем реальное имя файла из fileID (формат: timestamp_filename)
+	parts := strings.Split(fileID, "_")
+	filename := fileID
+	if len(parts) > 1 {
+		// Убираем timestamp и соединяем оставшиеся части
+		filename = strings.Join(parts[1:], "_")
+	}
+
+	return content, filename, nil
 }
 
-// ListFiles возвращает список файлов
-func (s *FileService) ListFiles() ([]*filepb.FileInfo, error) {
-	// Читаем все файлы из storage
-	files, err := os.ReadDir(s.storagePath)
+// DeleteFile удаляет файл пользователя
+func (s *FileService) DeleteFile(username, fileID string) error {
+	userPath := filepath.Join(s.storagePath, username)
+	filePath := filepath.Join(userPath, fileID)
+
+	// Проверяем существование файла
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Удаляем файл
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to delete file: %v", err)
+	}
+
+	return nil
+}
+
+// ListFiles возвращает список файлов для указанного пользователя
+func (s *FileService) ListFiles(username string) ([]*filepb.FileInfo, error) {
+	userPath := filepath.Join(s.storagePath, username)
+
+	// Читаем файлы пользователя
+	files, err := os.ReadDir(userPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Если директории нет, возвращаем пустой список
+			// Если директории пользователя нет, возвращаем пустой список
 			return []*filepb.FileInfo{}, nil
 		}
-		return nil, fmt.Errorf("failed to list files: %v", err)
+		return nil, fmt.Errorf("failed to list files for user %s: %v", username, err)
 	}
 
 	var fileInfos []*filepb.FileInfo
@@ -85,9 +116,17 @@ func (s *FileService) ListFiles() ([]*filepb.FileInfo, error) {
 				continue
 			}
 
+			// Извлекаем реальное имя файла из fileID
+			fileID := file.Name()
+			filename := fileID
+			parts := strings.Split(fileID, "_")
+			if len(parts) > 1 {
+				filename = strings.Join(parts[1:], "_")
+			}
+
 			fileInfos = append(fileInfos, &filepb.FileInfo{
-				Id:         file.Name(),
-				Filename:   file.Name(),
+				Id:         fileID,
+				Filename:   filename,
 				Size:       info.Size(),
 				UploadedAt: info.ModTime().Unix(),
 			})
@@ -112,7 +151,7 @@ func NewGRPCService(service *FileService) *FileServiceGRPC {
 func (s *FileServiceGRPC) List(ctx context.Context, req *filepb.ListFilesRequest) (*filepb.ListFilesResponse, error) {
 	fmt.Printf("List request for user: %s\n", req.Username)
 
-	files, err := s.service.ListFiles()
+	files, err := s.service.ListFiles(req.Username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
@@ -127,7 +166,7 @@ func (s *FileServiceGRPC) Upload(ctx context.Context, req *filepb.UploadRequest)
 	fmt.Printf("Upload request: user=%s, filename=%s, size=%d\n",
 		req.Username, req.Filename, len(req.Content))
 
-	fileID, err := s.service.SaveFile(req.Filename, req.Content)
+	fileID, err := s.service.SaveFile(req.Username, req.Filename, req.Content)
 	if err != nil {
 		return &filepb.UploadResponse{
 			Success: false,
@@ -147,7 +186,7 @@ func (s *FileServiceGRPC) Download(ctx context.Context, req *filepb.DownloadRequ
 	fmt.Printf("Download request: file_id=%s, user=%s\n",
 		req.FileId, req.Username)
 
-	content, filename, err := s.service.GetFile(req.FileId)
+	content, filename, err := s.service.GetFile(req.Username, req.FileId)
 	if err != nil {
 		return &filepb.DownloadResponse{
 			Success: false,
@@ -160,6 +199,25 @@ func (s *FileServiceGRPC) Download(ctx context.Context, req *filepb.DownloadRequ
 		Filename: filename,
 		Content:  content,
 		Message:  "File downloaded successfully",
+	}, nil
+}
+
+// Delete - gRPC метод для удаления файла
+func (s *FileServiceGRPC) Delete(ctx context.Context, req *filepb.DeleteRequest) (*filepb.DeleteResponse, error) {
+	fmt.Printf("Delete request: file_id=%s, user=%s\n",
+		req.FileId, req.Username)
+
+	err := s.service.DeleteFile(req.Username, req.FileId)
+	if err != nil {
+		return &filepb.DeleteResponse{
+			Success: false,
+			Message: fmt.Sprintf("Delete failed: %v", err),
+		}, nil
+	}
+
+	return &filepb.DeleteResponse{
+		Success: true,
+		Message: "File deleted successfully",
 	}, nil
 }
 
