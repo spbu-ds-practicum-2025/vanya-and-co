@@ -72,6 +72,28 @@ func (s *AuthService) WhoAmI(ctx context.Context, req *authpb.WhoAmIRequest) (*a
 	return &authpb.WhoAmIResponse{Username: ""}, nil
 }
 
+// HTTP WhoAmI handler для проверки токенов
+func (s *AuthService) WhoAmIHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	token := r.FormValue("token")
+	if token == "" {
+		http.Error(w, "Token required", http.StatusBadRequest)
+		return
+	}
+
+	if u, ok := s.WhoAmIToken(token); ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"username": "` + u + `"}`))
+		return
+	}
+
+	http.Error(w, "Invalid token", http.StatusUnauthorized)
+}
+
 func (s *AuthService) migrate() error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT);`,
@@ -109,9 +131,15 @@ func (s *AuthService) setSession(w http.ResponseWriter, username string) {
 	_, _ = rand.Read(tokenBytes)
 	token := hex.EncodeToString(tokenBytes)
 	expires := time.Now().Add(24 * time.Hour)
+	
+	log.Printf("[Auth] Creating session for user: %s", username)
+	
 	if _, err := s.db.Exec(`INSERT INTO sessions (token, username, expires) VALUES (?, ?, ?)`, token, username, expires.Unix()); err != nil {
-		log.Println("setSession insert error:", err)
+		log.Println("[Auth] setSession insert error:", err)
+	} else {
+		log.Printf("[Auth] Session saved to DB for user %s", username)
 	}
+	
 	http.SetCookie(w, &http.Cookie{Name: "session", Value: token, Path: "/", Expires: expires, HttpOnly: true})
 }
 
@@ -147,6 +175,7 @@ func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Условие 3: Ошибка, если логин не найден или пароль неверен
 	if !exists || savedPwd != p {
+		log.Printf("[Auth] Login failed for user: %s", u)
 		if isForm {
 			msg := "Пользователя с указанным логином не существует, либо неверный пароль"
 			http.Redirect(w, r, "/static/login-form.html?error="+url.QueryEscape(msg), http.StatusSeeOther)
@@ -161,47 +190,11 @@ func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Условие 1: Сразу перекидываем на файлы
 	if isForm {
+		log.Printf("[Auth] Redirecting user %s to /files/list", u)
 		http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 		return
 	}
 	w.Write([]byte("OK"))
-}
-
-// Добавляем метод Login в AuthService
-/*func (s *AuthService) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
-	if req == nil || req.Username == "" || req.Password == "" {
-		return nil, fmt.Errorf("invalid login request")
-	}
-
-	// Проверяем пользователя в базе данных
-	var storedPassword string
-	err := s.db.QueryRow("SELECT password FROM users WHERE username = ?", req.Username).Scan(&storedPassword)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, fmt.Errorf("database error: %v", err)
-	}
-
-	if storedPassword != req.Password {
-		return nil, fmt.Errorf("invalid credentials")
-	}
-
-	// Генерируем токен
-	token := generateToken()
-	expires := time.Now().Add(24 * time.Hour).Unix()
-	_, err = s.db.Exec("INSERT INTO sessions (token, username, expires) VALUES (?, ?, ?)", token, req.Username, expires)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %v", err)
-	}
-
-	return &authpb.LoginResponse{Token: token}, nil
-}*/
-
-func generateToken() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 // Register - Регистрация
@@ -240,6 +233,7 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Условие 3: Ошибка, если пользователь уже существует
 	if exists {
+		log.Printf("[Auth] Registration failed: user %s already exists", u)
 		if isForm {
 			msg := "Пользователь с указанным вами логином существует"
 			http.Redirect(w, r, "/static/register-form.html?error="+url.QueryEscape(msg), http.StatusSeeOther)
@@ -251,15 +245,19 @@ func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Создаем пользователя
 	if _, err := s.db.Exec(`INSERT INTO users (username, password) VALUES (?, ?)`, u, p); err != nil {
+		log.Printf("[Auth] Failed to create user %s: %v", u, err)
 		http.Error(w, "internal", 500)
 		return
 	}
+	
+	log.Printf("[Auth] User %s registered successfully", u)
 
 	// Успешная авторизация (Условие 3)
 	s.setSession(w, u)
 
 	// Условие 1: Сразу перекидываем на файлы
 	if isForm {
+		log.Printf("[Auth] Redirecting new user %s to /files/list", u)
 		http.Redirect(w, r, "/files/list", http.StatusSeeOther)
 		return
 	}
@@ -273,6 +271,7 @@ func (s *AuthService) Logout(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		// remove session from DB
 		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = ?`, cookie.Value)
+		log.Printf("[Auth] Session deleted")
 	}
 	// Удаляем куку и редиректим на логин (Условие 2)
 	http.SetCookie(w, &http.Cookie{Name: "session", Value: "", Path: "/", MaxAge: -1})

@@ -1,0 +1,641 @@
+2025/12/22 16:05:43 Connecting to Auth service at: localhost:5101 (gRPC) and localhost:5100 (HTTP)
+2025/12/22 16:05:43 Connecting to File service at: localhost:5200
+2025/12/22 16:05:43 Connecting to Sharing service at: localhost:5300
+2025/12/22 16:05:43 Serving static files from: services/gateway/cmd/server/static
+2025/12/22 16:05:43 ✓ Found index.html at services\gateway\cmd\server\static\index.html
+2025/12/22 16:05:43 ✓ Found dashboard.html at services\gateway\cmd\server\static\dashboard.html
+2025/12/22 16:05:43 🌐 Gateway starting on http://localhost:8080
+2025/12/22 16:05:43 📁 Static files path: services/gateway/cmd/server/static
+2025/12/22 16:05:43 🔗 Available endpoints:
+2025/12/22 16:05:43   - GET  /                    (Main page)
+2025/12/22 16:05:43   - GET  /files/list          (Dashboard)
+2025/12/22 16:05:43   - POST /auth/register       (Register)
+2025/12/22 16:05:43   - POST /auth/login          (Login)
+2025/12/22 16:05:43   - POST /auth/logout         (Logout)
+2025/12/22 16:05:43   - GET  /api/files/list      (Files API)
+2025/12/22 16:05:43   - POST /files/upload        (Upload)
+2025/12/22 16:05:43   - GET  /health              (Health check)
+2025/12/22 16:06:08 Proxying login request to Auth service
+2025/12/22 16:06:08 [Proxy] Forwarding POST /auth/login to http://localhost:5100
+2025/12/22 16:06:08 [Proxy] Response from Auth: Status=303 See Other
+2025/12/22 16:06:08 [Proxy] Redirect Location: /static/login-form.html?error=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D1%8F+%D1%81+%D1%83%D0%BA%D0%B0%D0%B7%D0%B0%D0%BD%D0%BD%D1%8B%D0%BC+%D0%BB%D0%BE%D0%B3%D0%B8%D0%BD%D0%BE%D0%BC+%D0%BD%D0%B5+%D1%81%D1%83%D1%89%D0%B5%D1%81%D1%82%D0%B2%D1%83%D0%B5%D1%82%2C+%D0%BB%D0%B8%D0%B1%D0%BE+%D0%BD%D0%B5%D0%B2%D0%B5%D1%80%D0%BD%D1%8B%D0%B9+%D0%BF%D0%B0%D1%80%D0%BE%D0%BB%D1%8C
+2025/12/22 16:06:31 Proxying login request to Auth service
+2025/12/22 16:06:31 [Proxy] Forwarding POST /auth/login to http://localhost:5100
+2025/12/22 16:06:31 [Proxy] Response from Auth: Status=303 See Other
+2025/12/22 16:06:31 [Proxy] Redirect Location: /files/list
+2025/12/22 16:06:31 [Proxy] Set-Cookie: session
+2025/12/22 16:06:31 [Gateway] Handling /files/list request from [::1]:64364
+2025/12/22 16:06:31 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:31 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:31 http: panic serving [::1]:64364: runtime error: invalid memory address or nil pointer dereference
+goroutine 44 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214240})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214240?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214240?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214240?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc000216ea0, {0x73ecc0, 0xc000214240})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc000262150?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214240}, {0x73ed60, 0xc000214280}, 0xc000214280?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc000262150?}, {0x7c1511?, 0xc000214240?}, {0x73ecc0?, 0xc000214240?}, {0x73ed60?, 0xc000214280?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc000262150}, 0xc000214240, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0002521c0}, 0xc000216c60)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0002521c0?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0002521c0}, 0xc000216c60)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc000208060?}, {0x891ef0?, 0xc0002521c0?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc000135b90, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:31 [Gateway] Handling /files/list request from [::1]:64365
+2025/12/22 16:06:31 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:31 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:31 http: panic serving [::1]:64365: runtime error: invalid memory address or nil pointer dereference
+goroutine 50 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214340})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214340?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214340?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214340?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc000217320, {0x73ecc0, 0xc000214340})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc000262230?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214340}, {0x73ed60, 0xc000214380}, 0xc000214380?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc000262230?}, {0x7c1511?, 0xc000214340?}, {0x73ecc0?, 0xc000214340?}, {0x73ed60?, 0xc000214380?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc000262230}, 0xc000214340, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0002522a0}, 0xc0000edc20)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0002522a0?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0002522a0}, 0xc0000edc20)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c0900?}, {0x891ef0?, 0xc0002522a0?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021e000, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:31 [Gateway] Handling /files/list request from [::1]:64384
+2025/12/22 16:06:31 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:31 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:31 http: panic serving [::1]:64384: runtime error: invalid memory address or nil pointer dereference
+goroutine 61 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214480})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214480?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214480?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214480?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc0002178c0, {0x73ecc0, 0xc000214480})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc0002622a0?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214480}, {0x73ed60, 0xc0002144c0}, 0xc0002144c0?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc0002622a0?}, {0x7c1511?, 0xc000214480?}, {0x73ecc0?, 0xc000214480?}, {0x73ed60?, 0xc0002144c0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc0002622a0}, 0xc000214480, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc000252380}, 0xc000217680)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc000252380?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc000252380}, 0xc000217680)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc000208c00?}, {0x891ef0?, 0xc000252380?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021e900, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:32 [Gateway] Handling /files/list request from [::1]:64385
+2025/12/22 16:06:32 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:32 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:32 http: panic serving [::1]:64385: runtime error: invalid memory address or nil pointer dereference
+goroutine 63 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214580})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214580?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214580?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214580?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc000217c20, {0x73ecc0, 0xc000214580})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc000262310?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214580}, {0x73ed60, 0xc0002145c0}, 0xc0002145c0?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc000262310?}, {0x7c1511?, 0xc000214580?}, {0x73ecc0?, 0xc000214580?}, {0x73ed60?, 0xc0002145c0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc000262310}, 0xc000214580, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc000252460}, 0xc0001f0240)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc000252460?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc000252460}, 0xc0001f0240)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c0c90?}, {0x891ef0?, 0xc000252460?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021eb40, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:32 [Gateway] Handling /files/list request from [::1]:64386
+2025/12/22 16:06:32 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:32 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:32 http: panic serving [::1]:64386: runtime error: invalid memory address or nil pointer dereference
+goroutine 46 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc00009f9c0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc00009f9c0?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc00009f9c0?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc00009f9c0?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc0001f0360, {0x73ecc0, 0xc00009f9c0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc00012e770?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc00009f9c0}, {0x73ed60, 0xc00009fa00}, 0x201e1b?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc00012e770?}, {0x7c1511?, 0xcb0800?}, {0x73ecc0?, 0xc00009f9c0?}, {0x73ed60?, 0xc00009fa00?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc00012e770}, 0xc00009f9c0, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000eb180}, 0xc00028a120)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000eb180?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000eb180}, 0xc00028a120)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc000030570?}, {0x891ef0?, 0xc0000eb180?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc000135e60, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:33 [Gateway] Handling /files/list request from [::1]:64387
+2025/12/22 16:06:33 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:33 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:33 http: panic serving [::1]:64387: runtime error: invalid memory address or nil pointer dereference
+goroutine 10 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214680})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214680?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214680?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214680?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc000406000, {0x73ecc0, 0xc000214680})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc000262380?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214680}, {0x73ed60, 0xc0002146c0}, 0xc0002146c0?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc000262380?}, {0x7c1511?, 0xc000214680?}, {0x73ecc0?, 0xc000214680?}, {0x73ed60?, 0xc0002146c0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc000262380}, 0xc000214680, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc000252540}, 0xc0001f06c0)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc000252540?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc000252540}, 0xc0001f06c0)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c0ff0?}, {0x891ef0?, 0xc000252540?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc0002803f0, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:38 [Gateway] Handling /files/list request from [::1]:64389
+2025/12/22 16:06:38 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:38 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:38 http: panic serving [::1]:64389: runtime error: invalid memory address or nil pointer dereference
+goroutine 66 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214880})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214880?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214880?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214880?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc000406480, {0x73ecc0, 0xc000214880})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc0002623f0?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214880}, {0x73ed60, 0xc0002148c0}, 0xc0002148c0?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc0002623f0?}, {0x7c1511?, 0xc000214880?}, {0x73ecc0?, 0xc000214880?}, {0x73ed60?, 0xc0002148c0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc0002623f0}, 0xc000214880, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc000252620}, 0xc00028a240)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc000252620?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc000252620}, 0xc00028a240)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0000307b0?}, {0x891ef0?, 0xc000252620?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021ef30, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:38 [Gateway] Handling /files/list request from [::1]:64390
+2025/12/22 16:06:38 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:38 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:38 http: panic serving [::1]:64390: runtime error: invalid memory address or nil pointer dereference
+goroutine 48 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214980})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214980?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214980?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214980?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc0004067e0, {0x73ecc0, 0xc000214980})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc000262460?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214980}, {0x73ed60, 0xc0002149c0}, 0xc0002149c0?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc000262460?}, {0x7c1511?, 0xc000214980?}, {0x73ecc0?, 0xc000214980?}, {0x73ed60?, 0xc0002149c0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc000262460}, 0xc000214980, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc000252700}, 0xc000406360)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc000252700?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc000252700}, 0xc000406360)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0002097a0?}, {0x891ef0?, 0xc000252700?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc0001fc120, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:06:38 [Gateway] Handling /files/list request from [::1]:64391
+2025/12/22 16:06:38 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:06:38 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:06:38 http: panic serving [::1]:64391: runtime error: invalid memory address or nil pointer dereference
+goroutine 69 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000078540})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000078540?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000078540?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000078540?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc00028a360, {0x73ecc0, 0xc000078540})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc0002a2150?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000078540}, {0x73ed60, 0xc000078580}, 0x201e1b?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc0002a2150?}, {0x7c1511?, 0xcb0800?}, {0x73ecc0?, 0xc000078540?}, {0x73ed60?, 0xc000078580?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc0002a2150}, 0xc000078540, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0002c6000}, 0xc0001f07e0)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0002c6000?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0002c6000}, 0xc0001f07e0)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c1170?}, {0x891ef0?, 0xc0002c6000?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021f320, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:07:08 [Gateway] Handling /files/list request from [::1]:64407
+2025/12/22 16:07:08 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:07:08 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:07:08 http: panic serving [::1]:64407: runtime error: invalid memory address or nil pointer dereference
+goroutine 12 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc00009fd80})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc00009fd80?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc00009fd80?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc00009fd80?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc0001f0a20, {0x73ecc0, 0xc00009fd80})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc00012e7e0?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc00009fd80}, {0x73ed60, 0xc00009fdc0}, 0x201e1b?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc00012e7e0?}, {0x7c1511?, 0xcb0800?}, {0x73ecc0?, 0xc00009fd80?}, {0x73ed60?, 0xc00009fdc0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc00012e7e0}, 0xc00009fd80, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000eb260}, 0xc0001f0900)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000eb260?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000eb260}, 0xc0001f0900)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c1410?}, {0x891ef0?, 0xc0000eb260?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc000280630, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:07:08 [Gateway] Handling /files/list request from [::1]:64408
+2025/12/22 16:07:08 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:07:08 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:07:08 http: panic serving [::1]:64408: runtime error: invalid memory address or nil pointer dereference
+goroutine 13 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc00009fe80})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc00009fe80?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc00009fe80?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc00009fe80?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc0001f0d80, {0x73ecc0, 0xc00009fe80})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc00012e850?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc00009fe80}, {0x73ed60, 0xc00009fec0}, 0x201e1b?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc00012e850?}, {0x7c1511?, 0xcb0800?}, {0x73ecc0?, 0xc00009fe80?}, {0x73ed60?, 0xc00009fec0?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc00012e850}, 0xc00009fe80, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000eb340}, 0xc000406b40)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000eb340?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000eb340}, 0xc000406b40)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc000209e00?}, {0x891ef0?, 0xc0000eb340?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc0002806c0, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:07:08 [Gateway] Handling /files/list request from [::1]:64409
+2025/12/22 16:07:08 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:07:08 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:07:08 http: panic serving [::1]:64409: runtime error: invalid memory address or nil pointer dereference
+goroutine 83 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc0004e4040})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc0004e4040?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc0004e4040?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc0004e4040?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc0001f1200, {0x73ecc0, 0xc0004e4040})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc00012e8c0?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc0004e4040}, {0x73ed60, 0xc0004e4080}, 0x201e1b?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc00012e8c0?}, {0x7c1511?, 0xcb0800?}, {0x73ecc0?, 0xc0004e4040?}, {0x73ed60?, 0xc0004e4080?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc00012e8c0}, 0xc0004e4040, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000eb420}, 0xc0001f10e0)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000eb420?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000eb420}, 0xc0001f10e0)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c1a40?}, {0x891ef0?, 0xc0000eb420?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc0001fc510, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:08:08 [Gateway] Handling /files/list request from [::1]:64444
+2025/12/22 16:08:08 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:08:08 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:08:08 http: panic serving [::1]:64444: runtime error: invalid memory address or nil pointer dereference
+goroutine 73 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214100})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214100?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214100?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214100?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc00028a240, {0x73ecc0, 0xc000214100})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc0002a2000?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214100}, {0x73ed60, 0xc000214140}, 0xc000214140?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc0002a2000?}, {0x7c1511?, 0xc000214100?}, {0x73ecc0?, 0xc000214100?}, {0x73ed60?, 0xc000214140?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc0002a2000}, 0xc000214100, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000ea460}, 0xc00028a120)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000ea460?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000ea460}, 0xc00028a120)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc000208030?}, {0x891ef0?, 0xc0000ea460?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc000280090, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:08:08 [Gateway] Handling /files/list request from [::1]:64445
+2025/12/22 16:08:08 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:08:08 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:08:08 http: panic serving [::1]:64445: runtime error: invalid memory address or nil pointer dereference
+goroutine 115 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214240})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214240?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214240?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214240?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc00028a5a0, {0x73ecc0, 0xc000214240})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc0002a20e0?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214240}, {0x73ed60, 0xc000214280}, 0xc000214280?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc0002a20e0?}, {0x7c1511?, 0xc000214240?}, {0x73ecc0?, 0xc000214240?}, {0x73ed60?, 0xc000214280?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc0002a20e0}, 0xc000214240, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000ea540}, 0xc000406000)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000ea540?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000ea540}, 0xc000406000)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0000306c0?}, {0x891ef0?, 0xc0000ea540?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021e000, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4
+2025/12/22 16:08:08 [Gateway] Handling /files/list request from [::1]:64446
+2025/12/22 16:08:08 [Gateway] ✅ Session cookie found: 8cf83550a9...
+2025/12/22 16:08:08 [Gateway] Calling Auth.WhoAmI gRPC...
+2025/12/22 16:08:08 http: panic serving [::1]:64446: runtime error: invalid memory address or nil pointer dereference
+goroutine 118 [running]:
+net/http.(*conn).serve.func1()
+        C:/Program Files/Go/src/net/http/server.go:1898 +0xbe
+panic({0x71f280?, 0xc043e0?})
+        C:/Program Files/Go/src/runtime/panic.go:770 +0x132
+google.golang.org/protobuf/proto.protoMethods(...)
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/proto_methods.go:19
+google.golang.org/protobuf/proto.MarshalOptions.marshal({{}, 0x1?, 0x3a?, 0x89?}, {0x0, 0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:176 +0x4e
+google.golang.org/protobuf/proto.Marshal({0x29f775d1aa0, 0xc000214340})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/protobuf@v1.34.1/proto/encode.go:110 +0x50
+google.golang.org/grpc/encoding/proto.codec.Marshal({}, {0x73ecc0?, 0xc000214340?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/encoding/proto/proto.go:47 +0x52
+google.golang.org/grpc.encode({0x29f775d1a00?, 0xcb0800?}, {0x73ecc0?, 0xc000214340?})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/rpc_util.go:647 +0x3e
+google.golang.org/grpc.prepareMsg({0x73ecc0?, 0xc000214340?}, {0x29f775d1a00?, 0xcb0800?}, {0x0, 0x0}, {0x0, 0x0})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:1772 +0xc7
+google.golang.org/grpc.(*clientStream).SendMsg(0xc00028a900, {0x73ecc0, 0xc000214340})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/stream.go:894 +0xf2
+google.golang.org/grpc.invoke({0x892a00?, 0xc0002a2150?}, {0x7c1511?, 0x40?}, {0x73ecc0, 0xc000214340}, {0x73ed60, 0xc000214380}, 0xc000214380?, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:70 +0x9f
+google.golang.org/grpc.(*ClientConn).Invoke(0xc00014c008, {0x892a00?, 0xc0002a2150?}, {0x7c1511?, 0xc000214340?}, {0x73ecc0?, 0xc000214340?}, {0x73ed60?, 0xc000214380?}, {0x0, ...})
+        C:/Users/Ivan/go/pkg/mod/google.golang.org/grpc@v1.64.0/call.go:37 +0x23f
+github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb.(*authClient).WhoAmI(0xc0001b6530, {0x892a00, 0xc0002a2150}, 0xc000214340, {0x0, 0x0, 0x0})
+        D:/_ORV/vanya-and-co/services/auth/authpb/auth.pb.go:72 +0xc8
+main.(*Gateway).handleFilesPage(0xc00009f2c0, {0x891ef0, 0xc0000ea8c0}, 0xc0001f0000)
+        D:/_ORV/vanya-and-co/services/gateway/cmd/server/main.go:240 +0x40f
+net/http.HandlerFunc.ServeHTTP(0xc2aa20?, {0x891ef0?, 0xc0000ea8c0?}, 0x4dd2fa?)
+        C:/Program Files/Go/src/net/http/server.go:2166 +0x29
+net/http.(*ServeMux).ServeHTTP(0x259399?, {0x891ef0, 0xc0000ea8c0}, 0xc0001f0000)
+        C:/Program Files/Go/src/net/http/server.go:2683 +0x1ad
+net/http.serverHandler.ServeHTTP({0xc0001c0030?}, {0x891ef0?, 0xc0000ea8c0?}, 0x6?)
+        C:/Program Files/Go/src/net/http/server.go:3137 +0x8e
+net/http.(*conn).serve(0xc00021e510, {0x892958, 0xc0001c0810})
+        C:/Program Files/Go/src/net/http/server.go:2039 +0x5e8
+created by net/http.(*Server).Serve in goroutine 1
+        C:/Program Files/Go/src/net/http/server.go:3285 +0x4b4

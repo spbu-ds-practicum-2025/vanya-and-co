@@ -2,7 +2,7 @@
 echo Starting all services...
 echo.
 echo Opening 4 terminal windows:
-echo   1. Auth Service (port 5100, 5101)
+echo   1. Auth Service (port 5100)
 echo   2. File Service (port 5200)
 echo   3. Sharing Service (port 5300)
 echo   4. Gateway (port 8080)

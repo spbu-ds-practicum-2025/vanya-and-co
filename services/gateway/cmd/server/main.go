@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"time"
 
-	authpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/auth/authpb"
 	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
 	sharingpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing/sharingpb"
 	"google.golang.org/grpc"
@@ -20,7 +19,6 @@ import (
 )
 
 type Gateway struct {
-	authClient    authpb.AuthClient
 	fileClient    filepb.FileServiceClient
 	sharingClient sharingpb.SharingServiceClient
 	authProxy     *httputil.ReverseProxy
@@ -28,21 +26,15 @@ type Gateway struct {
 
 func NewGateway() (*Gateway, error) {
 	// Используем адреса из переменных окружения или localhost для разработки
-	authAddr := getEnv("AUTH_GRPC_ADDR", "localhost:5101")
 	authHTTPAddr := getEnv("AUTH_HTTP_ADDR", "localhost:5100")
 	fileAddr := getEnv("FILE_ADDR", "localhost:5200")
 	sharingAddr := getEnv("SHARE_ADDR", "localhost:5300")
 
-	log.Printf("Connecting to Auth service at: %s (gRPC) and %s (HTTP)", authAddr, authHTTPAddr)
+	log.Printf("Connecting to Auth service at: %s (HTTP)", authHTTPAddr)
 	log.Printf("Connecting to File service at: %s", fileAddr)
 	log.Printf("Connecting to Sharing service at: %s", sharingAddr)
 
 	// Подключаемся к сервисам с retry логикой
-	authConn, err := dialWithRetry(authAddr, 5)
-	if err != nil {
-		log.Printf("Warning: Failed to connect to Auth gRPC service: %v", err)
-	}
-
 	fileConn, err := dialWithRetry(fileAddr, 5)
 	if err != nil {
 		log.Printf("Warning: Failed to connect to File service: %v", err)
@@ -53,13 +45,9 @@ func NewGateway() (*Gateway, error) {
 		log.Printf("Warning: Failed to connect to Sharing service: %v", err)
 	}
 
-	var authClient authpb.AuthClient
 	var fileClient filepb.FileServiceClient
 	var sharingClient sharingpb.SharingServiceClient
 
-	if authConn != nil {
-		authClient = authpb.NewAuthClient(authConn)
-	}
 	if fileConn != nil {
 		fileClient = filepb.NewFileServiceClient(fileConn)
 	}
@@ -71,8 +59,26 @@ func NewGateway() (*Gateway, error) {
 	authHTTPURL, _ := url.Parse("http://" + authHTTPAddr)
 	authProxy := httputil.NewSingleHostReverseProxy(authHTTPURL)
 
+	// Добавляем логирование для прокси
+	originalDirector := authProxy.Director
+	authProxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		log.Printf("[Proxy] Forwarding %s %s to %s", req.Method, req.URL.Path, authHTTPURL.String())
+	}
+	authProxy.ModifyResponse = func(resp *http.Response) error {
+		log.Printf("[Proxy] Response from Auth: Status=%s", resp.Status)
+		if loc := resp.Header.Get("Location"); loc != "" {
+			log.Printf("[Proxy] Redirect Location: %s", loc)
+		}
+		if cookies := resp.Cookies(); len(cookies) > 0 {
+			for _, c := range cookies {
+				log.Printf("[Proxy] Set-Cookie: %s", c.Name)
+			}
+		}
+		return nil
+	}
+
 	return &Gateway{
-		authClient:    authClient,
 		fileClient:    fileClient,
 		sharingClient: sharingClient,
 		authProxy:     authProxy,
@@ -114,24 +120,47 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		if g.authClient == nil {
-			log.Printf("Auth service unavailable")
-			http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
-		if err != nil || resp.Username == "" {
-			log.Printf("WhoAmI failed: Error=%v, Username=%v", err, resp.Username)
+		if cookie.Value == "" {
+			log.Printf("Empty session token")
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 
-		log.Printf("Authenticated user: %s", resp.Username)
-		ctx = context.WithValue(r.Context(), "username", resp.Username)
+		// Используем HTTP API вместо gRPC для проверки токена
+		authAddr := getEnv("AUTH_HTTP_ADDR", "localhost:5100")
+		authURL := "http://" + authAddr + "/auth/whoami"
+
+		resp, err := http.PostForm(authURL, url.Values{"token": {cookie.Value}})
+		if err != nil {
+			log.Printf("WhoAmI HTTP request failed: %v", err)
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("WhoAmI returned status: %d", resp.StatusCode)
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+
+		var whoamiResp struct {
+			Username string `json:"username"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&whoamiResp); err != nil {
+			log.Printf("Failed to decode WhoAmI response: %v", err)
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+
+		if whoamiResp.Username == "" {
+			log.Printf("WhoAmI returned empty username")
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+
+		log.Printf("Authenticated user: %s", whoamiResp.Username)
+		ctx := context.WithValue(r.Context(), "username", whoamiResp.Username)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
@@ -200,33 +229,14 @@ func (g *Gateway) handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("File uploaded successfully"))
 }
 
-// ИСПРАВЛЕНО: Новый обработчик для /files/list с правильной авторизацией
+// ИСПРАВЛЕНО: Обработчик для /files/list с правильной авторизацией через middleware
 func (g *Gateway) handleFilesPage(w http.ResponseWriter, r *http.Request) {
-	// Проверяем авторизацию через middleware
-	cookie, err := r.Cookie("session")
-	if err != nil {
-		log.Printf("No session cookie for /files/list: %v", err)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
-	if g.authClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
-		if err != nil || resp.Username == "" {
-			log.Printf("WhoAmI failed for /files/list: Error=%v, Username=%v", err, resp.Username)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-		log.Printf("User %s accessing dashboard", resp.Username)
-	}
+	log.Printf("[Gateway] Handling /files/list request from %s", r.RemoteAddr)
 
 	// Определяем путь к статическим файлам
 	staticPath := findStaticPath()
 	dashboardPath := filepath.Join(staticPath, "dashboard.html")
-	
+
 	// Проверяем существование файла
 	if _, err := os.Stat(dashboardPath); os.IsNotExist(err) {
 		log.Printf("Dashboard file not found at: %s", dashboardPath)
@@ -242,21 +252,22 @@ func (g *Gateway) handleFilesPage(w http.ResponseWriter, r *http.Request) {
 func findStaticPath() string {
 	// Возможные пути к статическим файлам
 	paths := []string{
+		"services/gateway/cmd/server/static", // при запуске из корневой директории
+		"./static", // при запуске из services/gateway/cmd/server
 		"static",
-		"./static",
-		"services/gateway/cmd/server/static",
-		"./services/gateway/cmd/server/static",
 		"../../static",
 		"/app/static", // для Docker
 	}
 
 	for _, path := range paths {
 		if _, err := os.Stat(filepath.Join(path, "index.html")); err == nil {
+			log.Printf("Found static files at: %s", path)
 			return path
 		}
 	}
 
-	// Если ничего не найдено, возвращаем первый путь
+	// Если ничего не найдено, возвращаем путь по умолчанию
+	log.Printf("Static files not found, using default path: static")
 	return "static"
 }
 
@@ -325,8 +336,8 @@ func main() {
 	http.HandleFunc("/api/files/list", gateway.authMiddleware(gateway.handleFileList))
 	http.HandleFunc("/files/upload", gateway.authMiddleware(gateway.handleFileUpload))
 	
-	// ИСПРАВЛЕНО: /files/list теперь использует улучшенный обработчик
-	http.HandleFunc("/files/list", gateway.handleFilesPage)
+	// ИСПРАВЛЕНО: /files/list теперь использует authMiddleware
+	http.HandleFunc("/files/list", gateway.authMiddleware(gateway.handleFilesPage))
 
 	// Главная страница
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
