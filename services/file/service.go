@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb"
+	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/proto"
 	"google.golang.org/grpc"
 )
 
@@ -86,10 +86,9 @@ func (s *FileService) ListFiles() ([]*filepb.FileInfo, error) {
 			}
 
 			fileInfos = append(fileInfos, &filepb.FileInfo{
-				Id:         file.Name(),
-				Filename:   file.Name(),
-				Size:       info.Size(),
-				UploadedAt: info.ModTime().Unix(),
+				Name:    file.Name(),
+				Size:    info.Size(),
+				Created: info.ModTime().Unix(),
 			})
 		}
 	}
@@ -109,7 +108,7 @@ func NewGRPCService(service *FileService) *FileServiceGRPC {
 }
 
 // List - gRPC метод для получения списка файлов
-func (s *FileServiceGRPC) List(ctx context.Context, req *filepb.ListFilesRequest) (*filepb.ListFilesResponse, error) {
+func (s *FileServiceGRPC) List(ctx context.Context, req *filepb.ListRequest) (*filepb.ListResponse, error) {
 	fmt.Printf("List request for user: %s\n", req.Username)
 
 	files, err := s.service.ListFiles()
@@ -117,7 +116,7 @@ func (s *FileServiceGRPC) List(ctx context.Context, req *filepb.ListFilesRequest
 		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
 
-	return &filepb.ListFilesResponse{
+	return &filepb.ListResponse{
 		Files: files,
 	}, nil
 }
@@ -144,22 +143,51 @@ func (s *FileServiceGRPC) Upload(ctx context.Context, req *filepb.UploadRequest)
 
 // Download - gRPC метод для скачивания файла
 func (s *FileServiceGRPC) Download(ctx context.Context, req *filepb.DownloadRequest) (*filepb.DownloadResponse, error) {
-	fmt.Printf("Download request: file_id=%s, user=%s\n",
-		req.FileId, req.Username)
+	fmt.Printf("Download request: filename=%s, user=%s\n",
+		req.Filename, req.Username)
 
-	content, filename, err := s.service.GetFile(req.FileId)
+	content, filename, err := s.service.GetFile(req.Filename)
 	if err != nil {
-		return &filepb.DownloadResponse{
-			Success: false,
-			Message: fmt.Sprintf("Download failed: %v", err),
-		}, nil
+		return nil, fmt.Errorf("download failed: %v", err)
 	}
 
 	return &filepb.DownloadResponse{
-		Success:  true,
-		Filename: filename,
 		Content:  content,
-		Message:  "File downloaded successfully",
+		Filename: filename,
+	}, nil
+}
+
+// DeleteFile удаляет файл
+func (s *FileService) DeleteFile(fileID string) error {
+	filePath := filepath.Join(s.storagePath, fileID)
+
+	// Проверяем существование файла
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Удаляем файл
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to delete file: %v", err)
+	}
+
+	return nil
+}
+
+// Delete - gRPC метод для удаления файла
+func (s *FileServiceGRPC) Delete(ctx context.Context, req *filepb.DeleteRequest) (*filepb.DeleteResponse, error) {
+	fmt.Printf("Delete request: filename=%s, user=%s\n",
+		req.Filename, req.Username)
+
+	// В текущей реализации просто удаляем файл по имени
+	// В будущем можно добавить проверку прав доступа
+	err := s.service.DeleteFile(req.Filename)
+	if err != nil {
+		return nil, fmt.Errorf("delete failed: %v", err)
+	}
+
+	return &filepb.DeleteResponse{
+		Success: true,
 	}, nil
 }
 

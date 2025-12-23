@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -33,6 +34,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
+
+	// Запускаем HTTP сервер для sharing endpoints
+	httpService := sharingService
+	http.HandleFunc("/create", httpService.Create)
+	http.HandleFunc("/share/", httpService.Download)
+	http.HandleFunc("/list", httpService.List)
+	http.HandleFunc("/get", httpService.Get)
+	http.HandleFunc("/revoke", httpService.Revoke)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	go func() {
+		httpPort := getEnv("HTTP_PORT", "5400")
+		log.Printf("🌐 Sharing HTTP service starting on :%s", httpPort)
+		if err := http.ListenAndServe(":"+httpPort, nil); err != nil {
+			log.Printf("HTTP server failed: %v", err)
+		}
+	}()
 
 	log.Printf("🔗 Sharing gRPC service starting on :%s", grpcPort)
 	if err := grpcServer.Serve(lis); err != nil {

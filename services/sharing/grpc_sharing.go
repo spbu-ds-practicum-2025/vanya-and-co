@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"time"
 
 	sharingpb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing/sharingpb"
 )
@@ -34,6 +36,35 @@ func (s *SharingServiceGRPC) GetSharedFiles(ctx context.Context, req *sharingpb.
 	// Реализация
 	return &sharingpb.GetSharedResponse{
 		Files: []*sharingpb.SharedFileInfo{},
+	}, nil
+}
+
+// CreateLink - gRPC метод для создания публичной ссылки
+func (s *SharingServiceGRPC) CreateLink(ctx context.Context, req *sharingpb.CreateLinkRequest) (*sharingpb.CreateLinkResponse, error) {
+	token := generateToken()
+	expiresAt := time.Now().Add(time.Duration(req.TtlSeconds) * time.Second).Unix()
+
+	// Сохраняем ссылку в сервисе
+	link := Link{
+		Token:   token,
+		Owner:   req.Owner,
+		File:    req.Filename,
+		Expires: time.Unix(expiresAt, 0),
+	}
+
+	s.service.mu.Lock()
+	s.service.links[token] = link
+	s.service.mu.Unlock()
+
+	if s.service.db != nil {
+		_, _ = s.service.db.Exec(`INSERT INTO links (token, owner, file, expires) VALUES (?, ?, ?, ?)`,
+			token, req.Owner, req.Filename, expiresAt)
+	}
+
+	return &sharingpb.CreateLinkResponse{
+		Link:      fmt.Sprintf("/share/%s", token),
+		Token:     token,
+		ExpiresAt: expiresAt,
 	}, nil
 }
 

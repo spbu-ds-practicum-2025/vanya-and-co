@@ -63,13 +63,20 @@ func (s *AuthService) WhoAmIToken(token string) (string, bool) {
 
 // Implement gRPC server for Auth
 func (s *AuthService) WhoAmI(ctx context.Context, req *authpb.WhoAmIRequest) (*authpb.WhoAmIResponse, error) {
-	if req == nil || req.Token == "" {
-		return &authpb.WhoAmIResponse{Username: ""}, nil
+	log.Printf("WhoAmI called with req=%v, req.Token=%q", req, req.Token)
+
+	var username string
+	if req != nil && req.Token != "" {
+		if u, ok := s.WhoAmIToken(req.Token); ok {
+			username = u
+		}
 	}
-	if u, ok := s.WhoAmIToken(req.Token); ok {
-		return &authpb.WhoAmIResponse{Username: u}, nil
-	}
-	return &authpb.WhoAmIResponse{Username: ""}, nil
+
+	log.Printf("WhoAmI returning username=%q", username)
+
+	resp := &authpb.WhoAmIResponse{Username: username}
+	log.Printf("WhoAmI response created: %v", resp)
+	return resp, nil
 }
 
 func (s *AuthService) migrate() error {

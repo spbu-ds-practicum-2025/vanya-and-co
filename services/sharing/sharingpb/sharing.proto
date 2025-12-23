@@ -42,8 +42,19 @@ message CreateLinkResponse {
     int64 expires_at = 3;
 }
 
+message GetFileByTokenRequest {
+    string token = 1;
+}
+
+message GetFileByTokenResponse {
+    bytes data = 1;
+    string filename = 2;
+    string content_type = 3;
+}
+
 service SharingService {
     rpc ShareFile(ShareRequest) returns (ShareResponse);
     rpc GetSharedFiles(GetSharedRequest) returns (GetSharedResponse);
     rpc CreateLink(CreateLinkRequest) returns (CreateLinkResponse);
+    rpc GetFileByToken(GetFileByTokenRequest) returns (GetFileByTokenResponse);
 }

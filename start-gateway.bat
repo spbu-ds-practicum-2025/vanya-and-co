@@ -1,20 +1,24 @@
-#!/bin/bash
+@echo off
 
-# Скрипт для запуска Gateway отдельно
+REM Скрипт для запуска Gateway отдельно
 
-echo "🌐 Starting Gateway..."
-echo "htttp:localhost:8080"
-echo ""
+echo  Starting Gateway...
+echo http://localhost:8080
+echo.
 
-# Устанавливаем переменные окружения
-export PORT=8080
-export AUTH_GRPC_ADDR=localhost:5101
-export AUTH_HTTP_ADDR=localhost:5100
-export FILE_ADDR=localhost:5200
-export SHARE_ADDR=localhost:5300
+REM Устанавливаем переменные окружения
+set PORT=
+set AUTH_GRPC_ADDR=
+set AUTH_HTTP_ADDR=
+set FILE_ADDR=
+set SHARE_ADDR=
+set SHARE_HTTP_ADDR=
+set PORT=8080
+set AUTH_GRPC_ADDR=localhost:5101
+set AUTH_HTTP_ADDR=localhost:5100
+set FILE_ADDR=localhost:5200
+set SHARE_ADDR=localhost:5300
+set SHARE_HTTP_ADDR=localhost:5400
 
-# Переходим в директорию проекта
-cd "$(dirname "$0")"
-
-# Запускаем gateway
+REM Запускаем gateway
 go run services/gateway/cmd/server/main.go

@@ -4,6 +4,8 @@ echo HTTP Port: 5100
 echo gRPC Port: 5101
 echo.
 
+set HTTP_PORT=
+set GRPC_PORT=
 set HTTP_PORT=5100
 set GRPC_PORT=5101
 

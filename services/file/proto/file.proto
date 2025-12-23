@@ -22,8 +22,10 @@ message DownloadRequest {
 }
 
 message DownloadResponse {
-    bytes content = 1;
-    string filename = 2;
+    bool success = 1;
+    string message = 2;
+    bytes content = 3;
+    string filename = 4;
 }
 
 message ListRequest {
@@ -47,6 +49,7 @@ message DeleteRequest {
 
 message DeleteResponse {
     bool success = 1;
+    string message = 2;
 }
 
 service FileService {
