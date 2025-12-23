@@ -1,131 +1,197 @@
 package file
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"net/http"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/google/uuid"
+	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/proto"
+	"google.golang.org/grpc"
 )
 
+// FileService представляет сервис для работы с файлами
 type FileService struct {
-	BasePath  string
-	MaxSizeMB int
+	storagePath string
 }
 
-func New(base string, maxSizeMB int) *FileService {
-	os.MkdirAll(base, os.ModePerm)
-	return &FileService{BasePath: base, MaxSizeMB: maxSizeMB}
-}
-
-// UPLOAD
-func (s *FileService) Upload(w http.ResponseWriter, r *http.Request) {
-
-	// ограничение
-	r.Body = http.MaxBytesReader(w, r.Body, int64(s.MaxSizeMB<<20))
-
-	r.ParseMultipartForm(10 << 20)
-
-	id := uuid.New().String()
-
-	file, handler, err := r.FormFile("file")
+// NewFileService создает новый экземпляр FileService
+func NewFileService() *FileService {
+	absolutePath, err := filepath.Abs("./storage")
 	if err != nil {
-		http.Error(w, "no file", 400)
-		return
+		log.Fatalf("Failed to resolve storage path: %v", err)
 	}
-	defer file.Close()
+	return &FileService{
+		storagePath: absolutePath,
+	}
+}
 
-	filename := id + "-" + handler.Filename
+// SaveFile сохраняет файл
+func (s *FileService) SaveFile(filename string, content []byte) (string, error) {
+	// Создаем директорию, если её нет
+	if err := os.MkdirAll(s.storagePath, 0755); err != nil {
+		return "", fmt.Errorf("failed to create storage directory: %v", err)
+	}
 
-	dst := filepath.Join(s.BasePath, filename)
+	// Генерируем уникальный ID
+	fileID := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filename)
+	filePath := filepath.Join(s.storagePath, fileID)
 
-	out, err := os.Create(dst)
+	// Сохраняем файл
+	if err := os.WriteFile(filePath, content, 0644); err != nil {
+		return "", fmt.Errorf("failed to save file: %v", err)
+	}
+
+	return fileID, nil
+}
+
+// GetFile возвращает файл по ID
+func (s *FileService) GetFile(fileID string) ([]byte, string, error) {
+	filePath := filepath.Join(s.storagePath, fileID)
+
+	// Проверяем существование файла
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, "", fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Читаем файл
+	content, err := os.ReadFile(filePath)
 	if err != nil {
-		http.Error(w, "can't save", 500)
-		return
-	}
-	defer out.Close()
-
-	io.Copy(out, file)
-
-	fmt.Fprintf(w, "uploaded ok: %s\n", filename)
-	fmt.Fprintf(w, `<br><a href="/files/list">Show files</a>`)
-}
-
-// LIST
-func (s *FileService) List(w http.ResponseWriter, r *http.Request) {
-	files, _ := os.ReadDir(s.BasePath)
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	w.Write([]byte(`
-		<html>
-		<head>
-			<title>Files</title>
-			<style>
-				body { font-family: Arial; padding: 20px; background:#fafafa; }
-				table { width:100%; border-collapse: collapse; }
-				td { padding:10px; border-bottom:1px solid #ddd; }
-				tr:hover { background:#f0f0f0; }
-				a.button{
-					padding:6px 12px;
-					text-decoration:none;
-					border-radius:4px;
-					color:white;
-					margin-right:6px;
-				}
-				.btn-view { background:#4CAF50 }
-				.btn-download { background:#2196F3 }
-				.btn-delete { background:#FF5252 }
-			</style>
-		</head>
-		<body>
-			<h1>Files</h1>
-			<a href="/upload-form.html">⬆ Upload file</a>
-			<br><br>
-			<table>
-	`))
-
-	for _, f := range files {
-		name := f.Name()
-
-		w.Write([]byte(fmt.Sprintf(
-			`
-				<tr>
-					<td>%s</td>
-					<td>
-						<a class="button btn-view" href="/files/view?name=%s">View</a>
-						<a class="button btn-download" href="/files/download?name=%s">Download</a>
-						<a class="button btn-delete" href="/files/delete?name=%s">Delete</a>
-					</td>
-				</tr>
-			`,
-			name, name, name, name,
-		)))
+		return nil, "", fmt.Errorf("failed to read file: %v", err)
 	}
 
-	w.Write([]byte(`
-			</table>
-		</body>
-		</html>
-	`))
+	return content, fileID, nil
 }
 
+// ListFiles возвращает список файлов
+func (s *FileService) ListFiles() ([]*filepb.FileInfo, error) {
+	// Читаем все файлы из storage
+	files, err := os.ReadDir(s.storagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Если директории нет, возвращаем пустой список
+			return []*filepb.FileInfo{}, nil
+		}
+		return nil, fmt.Errorf("failed to list files: %v", err)
+	}
 
-// VIEW — просмотр файлов (картинки откроются прямо в браузере)
-func (s *FileService) View(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, filepath.Join(s.BasePath, r.URL.Query().Get("name")))
+	var fileInfos []*filepb.FileInfo
+	for _, file := range files {
+		if !file.IsDir() {
+			info, err := file.Info()
+			if err != nil {
+				continue
+			}
+
+			fileInfos = append(fileInfos, &filepb.FileInfo{
+				Name:    file.Name(),
+				Size:    info.Size(),
+				Created: info.ModTime().Unix(),
+			})
+		}
+	}
+
+	return fileInfos, nil
 }
 
-// DOWNLOAD
-func (s *FileService) Download(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, filepath.Join(s.BasePath, r.URL.Query().Get("name")))
+// FileServiceGRPC реализует gRPC интерфейс
+type FileServiceGRPC struct {
+	filepb.UnimplementedFileServiceServer
+	service *FileService
 }
 
-// DELETE
-func (s *FileService) Delete(w http.ResponseWriter, r *http.Request) {
-	os.Remove(filepath.Join(s.BasePath, r.URL.Query().Get("name")))
-	http.Redirect(w, r, "/files/list", 302)
+// NewGRPCService создает gRPC обертку
+func NewGRPCService(service *FileService) *FileServiceGRPC {
+	return &FileServiceGRPC{service: service}
+}
+
+// List - gRPC метод для получения списка файлов
+func (s *FileServiceGRPC) List(ctx context.Context, req *filepb.ListRequest) (*filepb.ListResponse, error) {
+	fmt.Printf("List request for user: %s\n", req.Username)
+
+	files, err := s.service.ListFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %v", err)
+	}
+
+	return &filepb.ListResponse{
+		Files: files,
+	}, nil
+}
+
+// Upload - gRPC метод для загрузки файла
+func (s *FileServiceGRPC) Upload(ctx context.Context, req *filepb.UploadRequest) (*filepb.UploadResponse, error) {
+	fmt.Printf("Upload request: user=%s, filename=%s, size=%d\n",
+		req.Username, req.Filename, len(req.Content))
+
+	fileID, err := s.service.SaveFile(req.Filename, req.Content)
+	if err != nil {
+		return &filepb.UploadResponse{
+			Success: false,
+			Message: fmt.Sprintf("Upload failed: %v", err),
+		}, nil
+	}
+
+	return &filepb.UploadResponse{
+		Success: true,
+		FileId:  fileID,
+		Message: "File uploaded successfully",
+	}, nil
+}
+
+// Download - gRPC метод для скачивания файла
+func (s *FileServiceGRPC) Download(ctx context.Context, req *filepb.DownloadRequest) (*filepb.DownloadResponse, error) {
+	fmt.Printf("Download request: filename=%s, user=%s\n",
+		req.Filename, req.Username)
+
+	content, filename, err := s.service.GetFile(req.Filename)
+	if err != nil {
+		return nil, fmt.Errorf("download failed: %v", err)
+	}
+
+	return &filepb.DownloadResponse{
+		Content:  content,
+		Filename: filename,
+	}, nil
+}
+
+// DeleteFile удаляет файл
+func (s *FileService) DeleteFile(fileID string) error {
+	filePath := filepath.Join(s.storagePath, fileID)
+
+	// Проверяем существование файла
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Удаляем файл
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to delete file: %v", err)
+	}
+
+	return nil
+}
+
+// Delete - gRPC метод для удаления файла
+func (s *FileServiceGRPC) Delete(ctx context.Context, req *filepb.DeleteRequest) (*filepb.DeleteResponse, error) {
+	fmt.Printf("Delete request: filename=%s, user=%s\n",
+		req.Filename, req.Username)
+
+	// В текущей реализации просто удаляем файл по имени
+	// В будущем можно добавить проверку прав доступа
+	err := s.service.DeleteFile(req.Filename)
+	if err != nil {
+		return nil, fmt.Errorf("delete failed: %v", err)
+	}
+
+	return &filepb.DeleteResponse{
+		Success: true,
+	}, nil
+}
+
+// RegisterService регистрирует gRPC сервис
+func (s *FileServiceGRPC) RegisterService(server *grpc.Server) {
+	filepb.RegisterFileServiceServer(server, s)
 }

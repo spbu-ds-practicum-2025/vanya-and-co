@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .card-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Dashboard</h1>
+        <a href="index.html" style="color: #dc3545;">Logout</a>
+    </header>
+    
+    <div class="card-container">
+        <a href="upload-form.html" class="card">
+            <h3>📤 Upload File</h3>
+            <p>Upload new files</p>
+        </a>
+        <a href="download-form.html" class="card">
+            <h3>📥 Download File</h3>
+            <p>Download files</p>
+        </a>
+        <a href="share-form.html" class="card">
+            <h3>🔗 Create Share</h3>
+            <p>Create shareable link</p>
+        </a>
+        <a href="my-shares.html" class="card">
+            <h3>📋 My Shares</h3>
+            <p>View shared files</p>
+        </a>
+    </div>
+</body>
+</html>

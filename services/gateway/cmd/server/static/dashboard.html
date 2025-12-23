@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Панель управления - Облачное хранилище</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .logout {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 2px solid white;
+            transition: all 0.3s;
+        }
+        
+        .logout:hover {
+            background-color: white;
+            color: #667eea;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+        }
+        
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-decoration: none;
+            color: #333;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+        
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .card h3 {
+            margin: 15px 0 10px 0;
+            color: #667eea;
+            font-size: 20px;
+        }
+        
+        .card p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .files-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-top: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .files-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            background: #f8f9ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area input[type="file"] {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 15px;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .file-list {
+            list-style: none;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        
+        .file-item:hover {
+            background: #e9ecef;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .file-icon {
+            font-size: 24px;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .btn-download {
+            background: #4CAF50;
+        }
+        
+        .btn-download:hover {
+            background: #388E3C;
+        }
+        
+        .btn-share {
+            background: #2196F3;
+        }
+        
+        .btn-share:hover {
+            background: #1976D2;
+        }
+
+        .btn-delete {
+            background: #f44336;
+        }
+
+        .btn-delete:hover {
+            background: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>☁️ Панель управления</h1>
+        <a href="/auth/logout" class="logout">Выход</a>
+    </header>
+
+    <div class="container">
+        
+        
+        <div class="files-section">
+            <h3>📁 Управление файлами</h3>
+            
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <div style="font-size: 48px; margin-bottom: 15px;">📤</div>
+                <p style="font-size: 16px; color: #666; margin-bottom: 10px;">
+                    Нажмите для выбора файла или перетащите его сюда
+                </p>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" id="fileInput" name="file" onchange="handleFileSelect(event)">
+                </form>
+                <button class="upload-btn" onclick="uploadFile()" id="uploadButton" style="display: none;">
+                    Загрузить файл
+                </button>
+            </div>
+            
+            <h4 style="margin-bottom: 15px; color: #333;">Ваши файлы:</h4>
+            <ul class="file-list" id="fileList">
+                <li style="text-align: center; padding: 20px; color: #999;">
+                    Загрузка списка файлов...
+                </li>
+            </ul>
+
+            <h4 style="margin-bottom: 15px; margin-top: 30px; color: #333;">Общие ссылки:</h4>
+            <ul class="file-list" id="shareList">
+                <li style="text-align: center; padding: 20px; color: #999;">
+                    Создайте ссылки для обмена файлами, нажав "Поделиться" рядом с файлом
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+
+
+        // Загрузка списка файлов
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files/list');
+                if (response.ok) {
+                    const files = await response.json();
+                    displayFiles(files);
+                } else if (response.status === 401 || response.status === 403) {
+                    document.getElementById('fileList').innerHTML =
+                        '<li style="text-align: center; padding: 20px; color: #ff9800;">Необходимо авторизоваться для просмотра файлов</li>';
+                } else {
+                    document.getElementById('fileList').innerHTML =
+                        '<li style="text-align: center; padding: 20px; color: #f44336;">Ошибка загрузки файлов</li>';
+                }
+            } catch (error) {
+                console.error('Error loading files:', error);
+                document.getElementById('fileList').innerHTML =
+                    '<li style="text-align: center; padding: 20px; color: #f44336;">Сервис файлов недоступен</li>';
+            }
+        }
+
+        function displayFiles(files) {
+            const fileList = document.getElementById('fileList');
+            
+            if (!files || files.length === 0) {
+                fileList.innerHTML = '<li style="text-align: center; padding: 20px; color: #999;">Файлы не найдены</li>';
+                return;
+            }
+            
+            fileList.innerHTML = files.map(file => `
+                <li class="file-item">
+                    <div class="file-info">
+                        <span class="file-icon">📄</span>
+                        <div>
+                            <div style="font-weight: 600;">${file.name}</div>
+                            <div style="font-size: 12px; color: #999;">
+                                ${formatFileSize(file.size)} • ${formatDate(file.created)}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn-small btn-download" onclick="downloadFile('${file.name}')">
+                            📥 Скачать
+                        </button>
+                        <button class="btn-small btn-share" onclick="shareFile('${file.name}')">
+                            🔗 Поделиться
+                        </button>
+                        <button class="btn-small btn-delete" onclick="deleteFile('${file.name}')">
+                            🗑️ Удалить
+                        </button>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatDate(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleDateString('ru-RU') + ' ' + date.toLocaleTimeString('ru-RU');
+        }
+
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                document.getElementById('uploadButton').style.display = 'inline-block';
+                document.querySelector('.upload-area p').textContent = 
+                    `Выбран файл: ${selectedFile.name}`;
+            }
+        }
+
+        async function uploadFile() {
+            if (!selectedFile) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/files/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('Файл успешно загружен!');
+                    selectedFile = null;
+                    document.getElementById('fileInput').value = '';
+                    document.getElementById('uploadButton').style.display = 'none';
+                    document.querySelector('.upload-area p').textContent = 
+                        'Нажмите для выбора файла или перетащите его сюда';
+                    loadFiles();
+                } else {
+                    alert('Ошибка при загрузке файла');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Ошибка при загрузке файла');
+            }
+        }
+
+        function downloadFile(fileId) {
+            window.location.href = `/files/download/${fileId}`;
+        }
+
+        async function shareFile(fileId) {
+            try {
+                const response = await fetch('/files/share/' + encodeURIComponent(fileId), {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        // Добавляем ссылку в список
+                        addShareLink(data);
+                        alert('Ссылка для обмена создана! Ссылка: ' + data.link);
+                    } else {
+                        alert('Ошибка при создании ссылки');
+                    }
+                } else {
+                    alert('Ошибка при создании ссылки');
+                }
+            } catch (error) {
+                console.error('Share error:', error);
+                alert('Ошибка при создании ссылки');
+            }
+        }
+
+        function addShareLink(data) {
+            const shareList = document.getElementById('shareList');
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            li.innerHTML = `
+                <div class="file-info">
+                    <span class="file-icon">🔗</span>
+                    <div>
+                        <div style="font-weight: 600;">${data.link}</div>
+                        <div style="font-size: 12px; color: #999;">
+                            Истекает: ${formatDate(data.expires_at)}
+                        </div>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <button class="btn-small btn-share" onclick="copyToClipboard('${data.link}')">
+                        📋 Копировать
+                    </button>
+                </div>
+            `;
+            shareList.appendChild(li);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                alert('Ссылка скопирована в буфер обмена!');
+            }).catch(function(err) {
+                console.error('Could not copy text: ', err);
+                // Fallback для старых браузеров
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Ссылка скопирована в буфер обмена!');
+            });
+        }
+
+        async function deleteFile(fileId) {
+            if (!confirm('Вы уверены, что хотите удалить файл "' + fileId + '"?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/files/delete/' + encodeURIComponent(fileId), {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('Файл успешно удален!');
+                    loadFiles(); // Перезагрузить список файлов
+                } else {
+                    alert('Ошибка при удалении файла');
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Ошибка при удалении файла');
+            }
+        }
+
+        // Инициализация
+        loadFiles();
+    </script>
+</body>
+</html>

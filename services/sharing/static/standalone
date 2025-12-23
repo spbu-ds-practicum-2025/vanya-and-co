@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sharing Service</title>
+    <style>
+        body { font-family: Arial; padding: 40px; }
+        .service-header { background: #9C27B0; color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+    </style>
+</head>
+<body>
+    <div style="max-width: 600px; margin: 0 auto;">
+        <div class="service-header">
+            <h2>🔗 Sharing Service (Standalone)</h2>
+            <p>Gateway is offline - direct access</p>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h3>Create Share</h3>
+            <form id="shareForm">
+                <input type="text" placeholder="File ID" style="width: 100%; padding: 10px; margin: 5px 0;">
+                <button type="submit">Create Share Link</button>
+            </form>
+            
+            <h3>My Shares</h3>
+            <div id="sharesList">Loading...</div>
+        </div>
+    </div>
+    
+    <script>
+        // Load shares
+        fetch('/api/v1/shares')
+            .then(r => r.json())
+            .then(shares => {
+                const container = document.getElementById('sharesList');
+                container.innerHTML = shares.map(s => 
+                    `<div>🔗 ${s.file} - <a href="${s.link}" target="_blank">${s.link}</a></div>`
+                ).join('');
+            });
+    </script>
+</body>
+</html>

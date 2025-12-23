@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package filepb;
+
+option go_package = "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/filepb";
+
+// Upload
+message UploadRequest {
+    string username = 1;
+    string filename = 2;
+    bytes content = 3;
+}
+
+message UploadResponse {
+    bool success = 1;
+    string message = 2;
+    string file_id = 3;
+}
+
+// Download
+message DownloadRequest {
+    string username = 1;
+    string filename = 2;
+}
+
+message DownloadResponse {
+    bytes content = 1;
+    string filename = 2;
+}
+
+// List
+message ListRequest {
+    string username = 1;
+}
+
+message FileInfo {
+    string name = 1;
+    int64 size = 2;
+    int64 created = 3;
+}
+
+message ListResponse {
+    repeated FileInfo files = 1;
+}
+
+// Delete
+message DeleteRequest {
+    string username = 1;
+    string filename = 2;
+}
+
+message DeleteResponse {
+    bool success = 1;
+}
+
+// Service
+service FileService {
+    rpc Upload(UploadRequest) returns (UploadResponse);
+    rpc Download(DownloadRequest) returns (DownloadResponse);
+    rpc List(ListRequest) returns (ListResponse);
+    rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
