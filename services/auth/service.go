@@ -63,13 +63,20 @@ func (s *AuthService) WhoAmIToken(token string) (string, bool) {
 
 // Implement gRPC server for Auth
 func (s *AuthService) WhoAmI(ctx context.Context, req *authpb.WhoAmIRequest) (*authpb.WhoAmIResponse, error) {
-	if req == nil || req.Token == "" {
-		return &authpb.WhoAmIResponse{Username: ""}, nil
+	log.Printf("WhoAmI called with req=%v, req.Token=%q", req, req.Token)
+
+	var username string
+	if req != nil && req.Token != "" {
+		if u, ok := s.WhoAmIToken(req.Token); ok {
+			username = u
+		}
 	}
-	if u, ok := s.WhoAmIToken(req.Token); ok {
-		return &authpb.WhoAmIResponse{Username: u}, nil
-	}
-	return &authpb.WhoAmIResponse{Username: ""}, nil
+
+	log.Printf("WhoAmI returning username=%q", username)
+
+	resp := &authpb.WhoAmIResponse{Username: username}
+	log.Printf("WhoAmI response created: %v", resp)
+	return resp, nil
 }
 
 func (s *AuthService) migrate() error {
@@ -116,7 +123,7 @@ func (s *AuthService) setSession(w http.ResponseWriter, username string) {
 }
 
 // Login - Вход
-func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var u, p string
 	isForm := r.Header.Get("Content-Type") == "application/x-www-form-urlencoded"
 	if isForm {
@@ -165,6 +172,12 @@ func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte("OK"))
+}
+
+func generateToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Register - Регистрация

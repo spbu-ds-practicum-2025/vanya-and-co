@@ -1,0 +1,60 @@
+﻿syntax = "proto3";
+
+package sharingpb;
+
+option go_package = "github.com/spbu-ds-practicum-2025/vanya-and-co/services/sharing/sharingpb";
+
+message ShareRequest {
+    string owner = 1;
+    string filename = 2;
+    string shared_with = 3;
+}
+
+message ShareResponse {
+    bool success = 1;
+    string message = 2;
+    string token = 3;
+}
+
+message GetSharedRequest {
+    string username = 1;
+}
+
+message SharedFileInfo {
+    string filename = 1;
+    string owner = 2;
+    int64 shared_at = 3;
+}
+
+message GetSharedResponse {
+    repeated SharedFileInfo files = 1;
+}
+
+message CreateLinkRequest {
+    string owner = 1;
+    string filename = 2;
+    int64 ttl_seconds = 3;
+}
+
+message CreateLinkResponse {
+    string link = 1;
+    string token = 2;
+    int64 expires_at = 3;
+}
+
+message GetFileByTokenRequest {
+    string token = 1;
+}
+
+message GetFileByTokenResponse {
+    bytes data = 1;
+    string filename = 2;
+    string content_type = 3;
+}
+
+service SharingService {
+    rpc ShareFile(ShareRequest) returns (ShareResponse);
+    rpc GetSharedFiles(GetSharedRequest) returns (GetSharedResponse);
+    rpc CreateLink(CreateLinkRequest) returns (CreateLinkResponse);
+    rpc GetFileByToken(GetFileByTokenRequest) returns (GetFileByTokenResponse);
+}

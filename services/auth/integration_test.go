@@ -20,7 +20,8 @@ func TestAuthHandlers_Integration(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/register", s.Register)
-	mux.HandleFunc("/auth/login", s.Login)
+	// ИСПРАВЛЕНО: используем LoginHandler вместо Login
+	mux.HandleFunc("/auth/login", s.LoginHandler)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 

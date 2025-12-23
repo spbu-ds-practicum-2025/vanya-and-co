@@ -1,246 +1,197 @@
 package file
 
 import (
-	"crypto/rand"
-	"database/sql"
-	"encoding/hex"
+	"context"
 	"fmt"
-	"io"
-	"net/http"
+	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	filepb "github.com/spbu-ds-practicum-2025/vanya-and-co/services/file/proto"
+	"google.golang.org/grpc"
 )
 
+// FileService представляет сервис для работы с файлами
 type FileService struct {
-	BasePath  string
-	MaxSizeMB int
-	Cluster   *ReplicaCluster
-	db        *sql.DB
+	storagePath string
 }
 
-func New(base string, maxSizeMB int) *FileService {
-	_ = os.MkdirAll(base, os.ModePerm)
-	cluster := NewCluster(base, 3)
-	dbPath := filepath.Join(base, "file.db")
-	db, _ := sql.Open("sqlite", dbPath)
-	// ignore error here; embedded services/tests will ensure path
-	_ = os.MkdirAll(filepath.Dir(dbPath), os.ModePerm)
-	if db != nil {
-		_ = db.Ping()
-		// create table if needed
-		_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT, name TEXT, path TEXT, created INTEGER);`)
+// NewFileService создает новый экземпляр FileService
+func NewFileService() *FileService {
+	absolutePath, err := filepath.Abs("./storage")
+	if err != nil {
+		log.Fatalf("Failed to resolve storage path: %v", err)
 	}
-
 	return &FileService{
-		BasePath:  base,
-		MaxSizeMB: maxSizeMB,
-		Cluster:   cluster,
-		db:        db,
+		storagePath: absolutePath,
 	}
 }
 
-// Helper для генерации ID (замена uuid)
-func generateID() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-// UPLOAD - Загрузка файла (Условие 4: изоляция)
-func (s *FileService) Upload(w http.ResponseWriter, r *http.Request, username string) {
-	// Ограничение размера
-	r.Body = http.MaxBytesReader(w, r.Body, int64(s.MaxSizeMB<<20))
-	if err := r.ParseMultipartForm(int64(s.MaxSizeMB << 20)); err != nil {
-		http.Error(w, "File too big", http.StatusBadRequest)
-		return
+// SaveFile сохраняет файл
+func (s *FileService) SaveFile(filename string, content []byte) (string, error) {
+	// Создаем директорию, если её нет
+	if err := os.MkdirAll(s.storagePath, 0755); err != nil {
+		return "", fmt.Errorf("failed to create storage directory: %v", err)
 	}
 
-	file, header, err := r.FormFile("file")
+	// Генерируем уникальный ID
+	fileID := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filename)
+	filePath := filepath.Join(s.storagePath, fileID)
+
+	// Сохраняем файл
+	if err := os.WriteFile(filePath, content, 0644); err != nil {
+		return "", fmt.Errorf("failed to save file: %v", err)
+	}
+
+	return fileID, nil
+}
+
+// GetFile возвращает файл по ID
+func (s *FileService) GetFile(fileID string) ([]byte, string, error) {
+	filePath := filepath.Join(s.storagePath, fileID)
+
+	// Проверяем существование файла
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, "", fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Читаем файл
+	content, err := os.ReadFile(filePath)
 	if err != nil {
-		http.Error(w, "no file", 400)
-		return
-	}
-	defer file.Close()
-
-	// 1. Генерируем ID и чистим имя
-	id := generateID()
-	cleanName := filepath.Base(header.Filename)
-	cleanName = strings.ReplaceAll(cleanName, " ", "_")
-	filename := id + "-" + cleanName
-
-	// 2. Путь: BasePath/username/filename
-	userDir := filepath.Join(s.BasePath, filepath.Base(username))
-	_ = os.MkdirAll(userDir, os.ModePerm)
-	dst := filepath.Join(userDir, filename)
-
-	// 3. Читаем в память для записи и репликации
-	fileBytes, err := io.ReadAll(file)
-	if err != nil {
-		http.Error(w, "read error", 500)
-		return
+		return nil, "", fmt.Errorf("failed to read file: %v", err)
 	}
 
-	// 4. Пишем на основной диск
-	_ = os.WriteFile(dst, fileBytes, os.ModePerm)
-
-	// store metadata in DB
-	if s.db != nil {
-		_, _ = s.db.Exec(`INSERT INTO files (owner, name, path, created) VALUES (?, ?, ?, ?)`, username, filename, dst, time.Now().Unix())
-	}
-
-	// 5. Репликация
-	relPath := filepath.Join(filepath.Base(username), filename)
-	s.Cluster.Write(relPath, fileBytes)
-
-	// 6. Редирект обратно на список
-	http.Redirect(w, r, "/files/list", http.StatusSeeOther)
+	return content, fileID, nil
 }
 
-// LIST - Список файлов (Условие 2 и 4)
-func (s *FileService) List(w http.ResponseWriter, r *http.Request, username string) {
-	// prefer DB-backed listing if available
-	var rows *sql.Rows
-	var err error
-	if s.db != nil {
-		rows, err = s.db.Query(`SELECT name FROM files WHERE owner = ? ORDER BY created DESC`, username)
-	}
-	var names []string
-	if err == nil && rows != nil {
-		defer rows.Close()
-		for rows.Next() {
-			var n string
-			if err := rows.Scan(&n); err == nil {
-				names = append(names, n)
-			}
+// ListFiles возвращает список файлов
+func (s *FileService) ListFiles() ([]*filepb.FileInfo, error) {
+	// Читаем все файлы из storage
+	files, err := os.ReadDir(s.storagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Если директории нет, возвращаем пустой список
+			return []*filepb.FileInfo{}, nil
 		}
-	} else {
-		userDir := filepath.Join(s.BasePath, filepath.Base(username))
-		dirents, _ := os.ReadDir(userDir)
-		for _, f := range dirents {
-			if f.IsDir() {
+		return nil, fmt.Errorf("failed to list files: %v", err)
+	}
+
+	var fileInfos []*filepb.FileInfo
+	for _, file := range files {
+		if !file.IsDir() {
+			info, err := file.Info()
+			if err != nil {
 				continue
 			}
-			names = append(names, f.Name())
+
+			fileInfos = append(fileInfos, &filepb.FileInfo{
+				Name:    file.Name(),
+				Size:    info.Size(),
+				Created: info.ModTime().Unix(),
+			})
 		}
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	// HTML для отображения и кнопки "Выйти"
-	fmt.Fprintf(w, `
-		<html>
-		<head>
-			<title>Files</title>
-			<style>
-				body { font-family: sans-serif; padding: 20px; background:#f4f4f4; }
-				.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-				table { width:100%%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-				td, th { padding:12px; border-bottom:1px solid #ddd; text-align: left; }
-				tr:hover { background:#f9f9f9; }
-				.btn { padding: 5px 10px; text-decoration: none; color: white; border-radius: 4px; font-size: 14px; margin-right: 5px;}
-				.dl { background: #2196F3; }
-				.del { background: #F44336; }
-				.logout-btn { background: #555; border: none; color: white; padding: 8px 15px; cursor: pointer; border-radius: 4px;}
-				.upload-link { font-size: 16px; font-weight: bold; }
-			</style>
-		</head>
-		<body>
-			<div class="header">
-				<div>
-					<h1>Хранилище пользователя: %s</h1>
-					<a href="/static/upload-form.html" class="upload-link">⬆ Загрузить новый файл</a>
-				</div>
-				<form action="/auth/logout" method="POST" style="margin:0;">
-					<button type="submit" class="logout-btn">Выйти</button>
-				</form>
-			</div>
-
-			<table>
-				<tr><th>Имя файла</th><th style="text-align:right">Действия</th></tr>
-	`, username)
-
-	if len(names) == 0 {
-		fmt.Fprintf(w, "<tr><td colspan='2' style='text-align:center; color:#777;'>Папка пуста</td></tr>")
-	}
-
-	for _, name := range names {
-		// Ссылки на действия
-		fmt.Fprintf(w, `
-			<tr>
-				<td style="word-break: break-all; max-width: 400px;">%s</td>
-				<td style="min-width: 150px;">
-					<div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
-						<a class="btn dl" href="/files/download?name=%s">Скачать</a>
-						<a class="btn del" href="/files/delete?name=%s">Удалить</a>
-					</div>
-				</td>
-			</tr>`, name, name, name)
-	}
-
-	fmt.Fprintf(w, `</table></body></html>`)
+	return fileInfos, nil
 }
 
-// DOWNLOAD (Условие 4: изоляция)
-func (s *FileService) Download(w http.ResponseWriter, r *http.Request, username string) {
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		http.Error(w, "name required", 400)
-		return
-	}
-
-	// Путь относительно корня хранилища: username/filename
-	relPath := filepath.Join(filepath.Base(username), filepath.Base(name))
-	path := filepath.Join(s.BasePath, relPath)
-
-	// 1. Пробуем основной диск
-	data, err := os.ReadFile(path)
-	if err == nil {
-		s.serveData(w, name, data)
-		return
-	}
-
-	// 2. Если нет, ищем в кластере (репликах)
-	if data, ok := s.Cluster.ReadAny(relPath); ok {
-		s.serveData(w, name, data)
-		return
-	}
-
-	http.Error(w, "File not found", 404)
+// FileServiceGRPC реализует gRPC интерфейс
+type FileServiceGRPC struct {
+	filepb.UnimplementedFileServiceServer
+	service *FileService
 }
 
-// Вспомогательная функция отправки файла
-func (s *FileService) serveData(w http.ResponseWriter, name string, data []byte) {
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
-	w.Write(data)
+// NewGRPCService создает gRPC обертку
+func NewGRPCService(service *FileService) *FileServiceGRPC {
+	return &FileServiceGRPC{service: service}
 }
 
-// DELETE (Условие 4: изоляция)
-func (s *FileService) Delete(w http.ResponseWriter, r *http.Request, username string) {
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		http.Error(w, "name required", 400)
-		return
+// List - gRPC метод для получения списка файлов
+func (s *FileServiceGRPC) List(ctx context.Context, req *filepb.ListRequest) (*filepb.ListResponse, error) {
+	fmt.Printf("List request for user: %s\n", req.Username)
+
+	files, err := s.service.ListFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
 
-	// Путь относительно корня хранилища: username/filename
-	relPath := filepath.Join(filepath.Base(username), filepath.Base(name))
+	return &filepb.ListResponse{
+		Files: files,
+	}, nil
+}
 
-	// Удаляем с основного диска
-	mainFile := filepath.Join(s.BasePath, relPath)
-	_ = os.Remove(mainFile)
+// Upload - gRPC метод для загрузки файла
+func (s *FileServiceGRPC) Upload(ctx context.Context, req *filepb.UploadRequest) (*filepb.UploadResponse, error) {
+	fmt.Printf("Upload request: user=%s, filename=%s, size=%d\n",
+		req.Username, req.Filename, len(req.Content))
 
-	// Удаляем с узлов
-	s.Cluster.Delete(relPath)
-
-	// delete metadata from DB
-	if s.db != nil {
-		_, _ = s.db.Exec(`DELETE FROM files WHERE owner = ? AND name = ?`, username, filepath.Base(name))
+	fileID, err := s.service.SaveFile(req.Filename, req.Content)
+	if err != nil {
+		return &filepb.UploadResponse{
+			Success: false,
+			Message: fmt.Sprintf("Upload failed: %v", err),
+		}, nil
 	}
 
-	http.Redirect(w, r, "/files/list", http.StatusSeeOther)
+	return &filepb.UploadResponse{
+		Success: true,
+		FileId:  fileID,
+		Message: "File uploaded successfully",
+	}, nil
+}
+
+// Download - gRPC метод для скачивания файла
+func (s *FileServiceGRPC) Download(ctx context.Context, req *filepb.DownloadRequest) (*filepb.DownloadResponse, error) {
+	fmt.Printf("Download request: filename=%s, user=%s\n",
+		req.Filename, req.Username)
+
+	content, filename, err := s.service.GetFile(req.Filename)
+	if err != nil {
+		return nil, fmt.Errorf("download failed: %v", err)
+	}
+
+	return &filepb.DownloadResponse{
+		Content:  content,
+		Filename: filename,
+	}, nil
+}
+
+// DeleteFile удаляет файл
+func (s *FileService) DeleteFile(fileID string) error {
+	filePath := filepath.Join(s.storagePath, fileID)
+
+	// Проверяем существование файла
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Удаляем файл
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to delete file: %v", err)
+	}
+
+	return nil
+}
+
+// Delete - gRPC метод для удаления файла
+func (s *FileServiceGRPC) Delete(ctx context.Context, req *filepb.DeleteRequest) (*filepb.DeleteResponse, error) {
+	fmt.Printf("Delete request: filename=%s, user=%s\n",
+		req.Filename, req.Username)
+
+	// В текущей реализации просто удаляем файл по имени
+	// В будущем можно добавить проверку прав доступа
+	err := s.service.DeleteFile(req.Filename)
+	if err != nil {
+		return nil, fmt.Errorf("delete failed: %v", err)
+	}
+
+	return &filepb.DeleteResponse{
+		Success: true,
+	}, nil
+}
+
+// RegisterService регистрирует gRPC сервис
+func (s *FileServiceGRPC) RegisterService(server *grpc.Server) {
+	filepb.RegisterFileServiceServer(server, s)
 }

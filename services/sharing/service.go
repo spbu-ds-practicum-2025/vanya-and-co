@@ -1,9 +1,7 @@
 package sharing
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -47,12 +45,6 @@ func New(cluster *filepkg.ReplicaCluster, ttl time.Duration) *SharingService {
 	}
 	s := &SharingService{links: make(map[string]Link), cluster: cluster, ttl: ttl, db: db}
 	return s
-}
-
-func generateToken() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 // Create - create a public link

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,17 +13,20 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
+
         .register-form {
             background-color: white;
             padding: 30px;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
+
         h1 {
             color: #333;
             text-align: center;
             margin-bottom: 30px;
         }
+
         input {
             width: 100%;
             padding: 12px;
@@ -31,6 +35,7 @@
             border-radius: 5px;
             box-sizing: border-box;
         }
+
         button {
             width: 100%;
             padding: 12px;
@@ -41,9 +46,11 @@
             font-size: 16px;
             cursor: pointer;
         }
+
         button:hover {
             background-color: #1e7e34;
         }
+
         .back-link {
             display: block;
             text-align: center;
@@ -53,17 +60,18 @@
         }
     </style>
 </head>
+
 <body>
     <div class="register-form">
         <h1>Register</h1>
-        <form onsubmit="event.preventDefault(); window.location.href='index.html'; alert('Registration successful! Please login.');">
+        <form
+            onsubmit="event.preventDefault(); window.location.href='index.html'; alert('Registration successful! Please login.');">
             <input type="text" placeholder="Username" required>
-            <input type="email" placeholder="Email" required>
             <input type="password" placeholder="Password" required>
-            <input type="password" placeholder="Confirm Password" required>
             <button type="submit">Register</button>
         </form>
         <a href="index.html" class="back-link">← Back to Home</a>
     </div>
 </body>
+
 </html>

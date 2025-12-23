@@ -1,12 +1,39 @@
-FROM golang:1.24 AS builder
-WORKDIR /src
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /build
+
+# Установка необходимых инструментов для сборки с CGO
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+# Используем прокси для ускорения загрузки
+ENV GOPROXY=https://goproxy.io,direct
+ENV GO111MODULE=on
+ENV CGO_ENABLED=1
+
+# Копируем go.mod и go.sum
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/auth ./services/auth/cmd/server
 
+# Копируем весь проект
+COPY . .
+
+# Собираем бинарник из корня проекта
+RUN cd services/auth/cmd/server && \
+    go build -o /build/auth-server -ldflags="-s -w" .
+
+# Финальный образ
 FROM alpine:3.18
-RUN apk add --no-cache ca-certificates
-COPY --from=builder /bin/auth /bin/auth
+
+RUN apk add --no-cache ca-certificates sqlite-libs
+
+WORKDIR /app
+
+# Копируем бинарник
+COPY --from=builder /build/auth-server /app/auth-server
+
+# Создаем директорию для данных
+RUN mkdir -p /app/services/auth/data
+
 EXPOSE 5100 5101
-ENTRYPOINT ["/bin/auth"]
+
+ENTRYPOINT ["/app/auth-server"]
