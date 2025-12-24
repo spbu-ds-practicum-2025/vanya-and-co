@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,8 +34,20 @@ type AuthService struct {
 
 func New(dbPath string) *AuthService {
 	if dbPath == "" {
-		cwd, _ := os.Getwd()
-		dbPath = filepath.Join(cwd, "services", "auth", "data", "auth.db")
+		dbPath = os.Getenv("DB_PATH")
+		if dbPath == "" {
+			// Для локального запуска используем путь относительно корня проекта
+			if cwd, err := os.Getwd(); err == nil {
+				if strings.Contains(cwd, "services/auth/cmd/server") {
+					dbPath = filepath.Join(cwd, "../../../services/auth/data/auth.db")
+				} else {
+					dbPath = filepath.Join(cwd, "services/auth/data/auth.db")
+				}
+			} else {
+				cwd, _ := os.Getwd()
+				dbPath = filepath.Join(cwd, "services", "auth", "data", "auth.db")
+			}
+		}
 	}
 	_ = os.MkdirAll(filepath.Dir(dbPath), 0o755)
 	db, err := sql.Open("sqlite", dbPath)

@@ -34,9 +34,10 @@ message ListRequest {
 }
 
 message FileInfo {
-    string name = 1;
-    int64 size = 2;
-    int64 created = 3;
+    string id = 1;          // Уникальный ID файла
+    string name = 2;        // Реальное имя файла
+    int64 size = 3;
+    int64 created = 4;
 }
 
 message ListResponse {

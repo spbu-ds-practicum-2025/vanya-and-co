@@ -63,12 +63,23 @@ func NewGateway() (*Gateway, error) {
 
 	if authConn != nil {
 		authClient = authpb.NewAuthClient(authConn)
+		log.Printf("✓ Connected to Auth service")
+	} else {
+		log.Printf("✗ Failed to connect to Auth service")
 	}
+
 	if fileConn != nil {
 		fileClient = filepb.NewFileServiceClient(fileConn)
+		log.Printf("✓ Connected to File service")
+	} else {
+		log.Printf("✗ Failed to connect to File service")
 	}
+
 	if sharingConn != nil {
 		sharingClient = sharingpb.NewSharingServiceClient(sharingConn)
+		log.Printf("✓ Connected to Sharing service")
+	} else {
+		log.Printf("✗ Failed to connect to Sharing service")
 	}
 
 	// Создаем reverse proxy для Auth HTTP endpoints
@@ -123,18 +134,40 @@ func (g *Gateway) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// TEMP: Отключаем WhoAmI проверку из-за проблем с gRPC сериализацией
-		// Просто проверяем наличие cookie с непустым значением
 		if cookie.Value == "" {
 			log.Printf("Empty session cookie")
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 
-		log.Printf("Auth successful for session: %s...", cookie.Value[:min(10, len(cookie.Value))])
-		// Сохраняем фиктивное имя пользователя в контексте
-		ctx := context.WithValue(r.Context(), "username", "authenticated_user")
-		r = r.WithContext(ctx)
+		// Проверяем сессию через Auth сервис
+		if g.authClient != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			resp, err := g.authClient.WhoAmI(ctx, &authpb.WhoAmIRequest{Token: cookie.Value})
+			if err != nil {
+				log.Printf("WhoAmI gRPC error: %v", err)
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+				return
+			}
+
+			if resp.Username == "" {
+				log.Printf("Invalid session token")
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+				return
+			}
+
+			log.Printf("Auth successful for user: %s", resp.Username)
+			// Сохраняем реальное имя пользователя в контексте
+			ctx2 := context.WithValue(r.Context(), "username", resp.Username)
+			r = r.WithContext(ctx2)
+		} else {
+			log.Printf("Auth service unavailable, allowing request with cookie")
+			// Fallback: сохраняем фиктивное имя пользователя
+			ctx := context.WithValue(r.Context(), "username", "authenticated_user")
+			r = r.WithContext(ctx)
+		}
 
 		next(w, r) // Вызываем следующий обработчик
 	}
@@ -314,44 +347,78 @@ func (g *Gateway) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) handleFileUpload(w http.ResponseWriter, r *http.Request) {
+	log.Printf("handleFileUpload: Method=%s, URL=%s", r.Method, r.URL.Path)
+
 	if r.Method != http.MethodPost {
+		log.Printf("handleFileUpload: Invalid method: %s", r.Method)
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if g.fileClient == nil {
+		log.Printf("handleFileUpload: File client is nil - service unavailable")
 		http.Error(w, "File service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
-	r.ParseMultipartForm(10 << 20) // 10 MB limit
+	log.Printf("handleFileUpload: Parsing multipart form...")
+	err := r.ParseMultipartForm(10 << 20) // 10 MB limit
+	if err != nil {
+		log.Printf("handleFileUpload: Failed to parse form: %v", err)
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
 	file, handler, err := r.FormFile("file")
 	if err != nil {
+		log.Printf("handleFileUpload: Failed to get file from form: %v", err)
 		http.Error(w, "Failed to read file", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	username := r.Context().Value("username").(string)
+	username := r.Context().Value("username")
+	if username == nil {
+		log.Printf("handleFileUpload: No username in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	usernameStr := username.(string)
+	log.Printf("handleFileUpload: User=%s, Filename=%s", usernameStr, handler.Filename)
+
 	content, err := io.ReadAll(file)
 	if err != nil {
+		log.Printf("handleFileUpload: Failed to read file content: %v", err)
 		http.Error(w, "Failed to read file content", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("handleFileUpload: File size: %d bytes", len(content))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Printf("handleFileUpload: Calling file service Upload...")
 	resp, err := g.fileClient.Upload(ctx, &filepb.UploadRequest{
-		Username: username,
+		Username: usernameStr,
 		Filename: handler.Filename,
 		Content:  content,
 	})
-	if err != nil || !resp.Success {
+
+	if err != nil {
+		log.Printf("handleFileUpload: Upload RPC error: %v", err)
 		http.Error(w, "Failed to upload file", http.StatusInternalServerError)
 		return
 	}
 
+	if !resp.Success {
+		log.Printf("handleFileUpload: Upload failed: %s", resp.Message)
+		http.Error(w, "Failed to upload file: "+resp.Message, http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("handleFileUpload: Upload successful, file ID: %s", resp.FileId)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("File uploaded successfully"))
 }
@@ -438,6 +505,13 @@ func min(a, b int) int {
 
 // ДОБАВЛЕНО: Функция для поиска статических файлов
 func findStaticPath() string {
+	// Сначала проверяем переменную окружения
+	if staticPath := os.Getenv("STATIC_PATH"); staticPath != "" {
+		if _, err := os.Stat(filepath.Join(staticPath, "index.html")); err == nil {
+			return staticPath
+		}
+	}
+
 	// Возможные пути к статическим файлам
 	paths := []string{
 		"static",
@@ -580,7 +654,7 @@ func main() {
 	log.Printf("  - GET  /share/{token}       (Download shared file)")
 	log.Printf("  - GET  /health              (Health check)")
 	log.Printf("📊 Health check endpoints:")
-	log.Printf("  - Auth:    http://localhost:5100/health")
+	log.Printf("  - Auth:    http://localhost:5102/health")
 	log.Printf("  - File:    http://localhost:5201/health")
 	log.Printf("  - Sharing: http://localhost:5400/health")
 

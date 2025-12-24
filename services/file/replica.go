@@ -2,6 +2,7 @@ package file
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -28,12 +29,12 @@ func NewCluster(base string, n int) *ReplicaCluster {
 // relPath должен иметь формат "username/filename"
 func (c *ReplicaCluster) Write(relPath string, data []byte) {
 	var wg sync.WaitGroup
-	
+
 	for _, nodePath := range c.nodes {
 		wg.Add(1)
 		go func(p string) {
 			defer wg.Done()
-			
+
 			// Симуляция задержки сети
 			time.Sleep(time.Duration(50+rand.Intn(200)) * time.Millisecond)
 
@@ -41,11 +42,19 @@ func (c *ReplicaCluster) Write(relPath string, data []byte) {
 			dst := filepath.Join(p, relPath)
 
 			// ВАЖНО: Создаем папку пользователя внутри ноды, иначе WriteFile упадет
-			_ = os.MkdirAll(filepath.Dir(dst), os.ModePerm)
+			dir := filepath.Dir(dst)
+			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+				log.Printf("Failed to create directory %s: %v", dir, err)
+				return
+			}
 
 			// Запись
 			c.mu.Lock()
-			_ = os.WriteFile(dst, data, os.ModePerm)
+			if err := os.WriteFile(dst, data, os.ModePerm); err != nil {
+				log.Printf("Failed to write file %s: %v", dst, err)
+			} else {
+				log.Printf("File written successfully: %s", dst)
+			}
 			c.mu.Unlock()
 		}(nodePath)
 	}
@@ -56,13 +65,17 @@ func (c *ReplicaCluster) Write(relPath string, data []byte) {
 func (c *ReplicaCluster) ReadAny(relPath string) ([]byte, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	for _, nodePath := range c.nodes {
 		path := filepath.Join(nodePath, relPath)
 		if data, err := os.ReadFile(path); err == nil {
+			log.Printf("File read successfully: %s", path)
 			return data, true
+		} else {
+			log.Printf("File not found at: %s (%v)", path, err)
 		}
 	}
+	log.Printf("File not found in any node: %s", relPath)
 	return nil, false
 }
 
@@ -70,7 +83,7 @@ func (c *ReplicaCluster) ReadAny(relPath string) ([]byte, bool) {
 func (c *ReplicaCluster) Delete(relPath string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	for _, nodePath := range c.nodes {
 		path := filepath.Join(nodePath, relPath)
 		_ = os.Remove(path)

@@ -1,6 +1,6 @@
 services:
   auth:
-    build: 
+    build:
       context: .
       dockerfile: services/auth/Dockerfile
     ports:
@@ -9,12 +9,13 @@ services:
     environment:
       - HTTP_PORT=5100
       - GRPC_PORT=5101
+      - DB_PATH=/app/services/auth/data/auth.db
       - GOPROXY=https://goproxy.io,direct
     volumes:
       - ./services/auth/data:/app/services/auth/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5100/health"]
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5100/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,13 +29,15 @@ services:
       - "5200:5200"
     environment:
       - GRPC_PORT=5200
+      - STORAGE_PATH=/app/storage
+      - DB_PATH=/app/services/file/data/file.db
       - GOPROXY=https://goproxy.io,direct
     volumes:
       - ./services/file/storage:/app/storage
       - ./services/file/data:/app/services/file/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 5200 || exit 1"]
+      test: [ "CMD", "sh", "-c", "nc -z localhost 5200 || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,6 +51,7 @@ services:
       - "5300:5300"
     environment:
       - GRPC_PORT=5300
+      - DB_PATH=/app/services/sharing/data/sharing.db
       - GOPROXY=https://goproxy.io,direct
     volumes:
       - ./services/sharing/data:/app/services/sharing/data
@@ -56,7 +60,7 @@ services:
       file:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 5300 || exit 1"]
+      test: [ "CMD", "sh", "-c", "nc -z localhost 5300 || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,7 +88,7 @@ services:
       sharing:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 5s
       retries: 3

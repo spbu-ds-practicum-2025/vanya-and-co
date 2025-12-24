@@ -2,8 +2,6 @@ package sharing
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -45,12 +43,15 @@ func (s *SharingServiceGRPC) CreateLink(ctx context.Context, req *sharingpb.Crea
 	expiresAt := time.Now().Add(time.Duration(req.TtlSeconds) * time.Second).Unix()
 
 	// Сохраняем ссылку в сервисе
-	link := Link{
-		Token:   token,
-		Owner:   req.Owner,
-		File:    req.Filename,
-		Expires: time.Unix(expiresAt, 0),
+	link := ShareLink{
+		Token:     token,
+		Owner:     req.Owner,
+		File:      req.Filename,
+		ExpiresAt: &time.Time{}, // Will be set below
+		CreatedAt: time.Now(),
 	}
+	link.ExpiresAt = &time.Time{}
+	*link.ExpiresAt = time.Unix(expiresAt, 0)
 
 	s.service.mu.Lock()
 	s.service.links[token] = link
@@ -66,11 +67,4 @@ func (s *SharingServiceGRPC) CreateLink(ctx context.Context, req *sharingpb.Crea
 		Token:     token,
 		ExpiresAt: expiresAt,
 	}, nil
-}
-
-// Вспомогательная функция
-func generateToken() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
 }
